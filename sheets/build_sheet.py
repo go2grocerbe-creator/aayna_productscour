@@ -1061,6 +1061,13 @@ rows_help = [
         "Feminine + Trend + Aesthetic Fit, Partner B scores Easy to Style + Lightweight + Reels/Photo, Partner C "
         "scores Giftability + Price Fit + Demand + Quality/Risk) — or all 3 score independently and average "
         "manually before finalizing. Keep the Reason column honest; it's your shared memory."),
+    ("Where to enter new products", "Rows 3-7 are demo rows, one for each decision branch — leave them as "
+        "examples or delete them once the team is comfortable. Start entering real products from row 8 onward; "
+        "the Product Tracker has 498 ready-to-use rows (3-500). Never type over a colored, calculating column "
+        "(SKU, costs, scores, Decision, Auto Flag/Warning, the readiness checklist, Actual Profit, or Final "
+        "Stock Accepted) — only the white manual-input columns should be typed into."),
+    ("Backups", "Keep one clean, untouched copy of this file somewhere safe before partners start editing, so "
+        "there's always a working version to recover from if a formula ever gets accidentally overwritten."),
 ]
 r = 4
 for title, body in rows_help:
