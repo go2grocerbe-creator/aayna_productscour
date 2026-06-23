@@ -378,6 +378,8 @@ border = Border(left=thin, right=thin, top=thin, bottom=thin)
 first_data_row = header_row + 1
 last_data_row = header_row + n_data_rows
 
+ws.auto_filter.ref = f"A{header_row}:{get_column_letter(new2_start_idx + len(new_columns2) - 1)}{last_data_row}"
+
 for r in range(first_data_row, last_data_row + 1):
     # SKU (A): AYN-<fixed category prefix>-<4-digit row number>, e.g. AYN-EAR-0001.
     # Prefix comes from the CATEGORY_PREFIX_TABLE lookup, not from the category
