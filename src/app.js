@@ -1,87 +1,238 @@
+const TODAY = new Date().toISOString().slice(0, 10);
+
 const DEFAULT_SETTINGS = {
-  usdRate: 118,
-  rmbRate: 16.3,
-  markupPercentage: 65,
+  usdRate: 122,
+  rmbRate: 17,
+  defaultCustomsPct: 7,
+  defaultMiscFee: 15,
+  markupPercentage: 100,
   targetMaxPrice: 700,
   hardRejectPrice: 1000,
-  monthlyBudget: 30000
+  monthlyBudget: 30000,
+  lowProfitThreshold: 30,
+  moqWarningThreshold: 50
 };
 
 const SCORE_FIELDS = [
-  ["feminine", "Feminine"],
-  ["trendy", "Trendy"],
-  ["aaynaFit", "AAYNA aesthetic fit"],
-  ["easyToStyle", "Easy to style"],
-  ["lightweight", "Lightweight"],
-  ["reelsPhotos", "Good for reels/photos"],
-  ["giftability", "Giftability"],
-  ["priceFit", "Price fit"],
-  ["demand", "Demand"],
-  ["qualityRisk", "Quality/risk"]
+  ["feminine", "Feminine", 0.1],
+  ["trendy", "Trendy", 0.1],
+  ["aaynaFit", "AAYNA aesthetic fit", 0.15],
+  ["easyToStyle", "Easy to style", 0.08],
+  ["lightweight", "Lightweight", 0.07],
+  ["reelsPhotos", "Good for reels/photos", 0.1],
+  ["giftability", "Giftability", 0.08],
+  ["priceFit", "Price fit", 0.12],
+  ["demand", "Demand", 0.12],
+  ["qualityRisk", "Quality/risk", 0.08]
+];
+
+const DROPDOWNS = {
+  sourcePlatform: ["SkyBuyBD", "AliExpress", "Yiwugo", "1688", "Local Wholesale", "Other"],
+  category: ["Earrings", "Necklace", "Bracelet", "Ring", "Hair Accessory", "Bag", "Belt", "Sunglasses", "Watch", "Scarf", "Hijab Accessory", "Gift Set", "Other"],
+  sourceCurrency: ["BDT", "USD", "RMB"],
+  decision: ["Buy", "Maybe", "Price Review", "Reject"],
+  approvalStatus: ["Pending", "Approved", "Rejected", "On Hold"],
+  yesNo: ["No", "Yes"],
+  riskLevel: ["Low", "Medium", "High"],
+  packagingDifficulty: ["Easy", "Medium", "Hard"],
+  sourcingStatus: ["Not Started", "Sourcing", "Sample Ordered", "Sample Received", "Approved - Not Ordered", "Ordered", "In Transit", "Arrived", "Live on Website"],
+  qcStatus: ["Not Arrived", "QC Pending", "QC Passed", "Minor Defect", "QC Failed", "Discount Sell", "Return/Reject"],
+  aiTool: ["", "Claude", "ChatGPT", "Gemini", "Other"]
+};
+
+const CATEGORY_PREFIX = {
+  Earrings: "EAR",
+  Necklace: "NEC",
+  Bracelet: "BRC",
+  Ring: "RNG",
+  "Hair Accessory": "HAR",
+  Bag: "BAG",
+  Belt: "BLT",
+  Sunglasses: "SUN",
+  Watch: "WCH",
+  Scarf: "SCF",
+  "Hijab Accessory": "HIJ",
+  "Gift Set": "GFT",
+  Other: "OTH"
+};
+
+const FIELD_DEFAULTS = {
+  dateAdded: TODAY,
+  sourcePlatform: "AliExpress",
+  category: "Earrings",
+  sourceCurrency: "BDT",
+  shippingCostBdt: 0,
+  moq: 1,
+  recommendedTestQuantity: 1,
+  finalApprovedQuantity: 1,
+  realReviewPhotos: "No",
+  fragilityLevel: "Low",
+  packagingDifficulty: "Easy",
+  courierRisk: "Low",
+  duplicateFound: "No",
+  marketSaturationLevel: "Low",
+  approvalStatus: "Pending",
+  sourcingStatus: "Not Started",
+  productNameFinalized: "No",
+  skuFinalized: "No",
+  photosReady: "No",
+  descriptionReady: "No",
+  priceApproved: "No",
+  qcStatus: "Not Arrived",
+  manualScoreAdjusted: "No"
+};
+
+const FORM_FIELDS = [
+  "sku", "dateAdded", "productName", "productImageLink", "category", "sourcePlatform", "sourceUrl",
+  "supplierName", "unitCost", "sourceCurrency", "shippingCostBdt", "customsDutyPct", "miscFeesBdt",
+  "reason", "contentIdea", "approvalStatus", "approvedBy", "dateDecided", "supplierRating",
+  "productRating", "soldCount", "reviewCount", "realReviewPhotos", "moq", "recommendedTestQuantity",
+  "finalApprovedQuantity", "weightSize", "fragilityLevel", "packagingDifficulty", "courierRisk",
+  "duplicateFound", "competitorPrice", "marketSaturationLevel", "sourcingStatus", "productNameFinalized",
+  "skuFinalized", "photosReady", "descriptionReady", "priceApproved", "actualProductCost",
+  "actualShippingCost", "actualSellingPrice", "arrivalDate", "quantityReceived", "defectCount",
+  "qcStatus", "qcNotes", "aiToolUsed", "aiScoreDate", "scoredBy", "manualScoreAdjusted"
 ];
 
 const SAMPLE_PRODUCTS = [
   {
-    productName: "Pearl bow hair claw",
+    sku: "",
+    dateAdded: "2026-06-20",
+    productName: "Antique Gold Hoop Earrings",
+    productImageLink: "",
+    category: "Earrings",
     sourcePlatform: "AliExpress",
-    sourceUrl: "https://example.com/pearl-bow-hair-claw",
-    imageUrl: "",
-    category: "Hair accessories",
-    supplierPrice: 1.85,
-    currency: "USD",
-    shippingCost: 35,
-    moq: 12,
+    sourceUrl: "https://www.aliexpress.com/item/sample1",
+    supplierName: "Lin Wei Trading",
+    unitCost: 1.8,
+    sourceCurrency: "USD",
+    shippingCostBdt: 25,
+    miscFeesBdt: 15,
     supplierRating: 4.8,
     productRating: 4.7,
     soldCount: 1800,
-    material: "Acrylic, faux pearl",
-    color: "Ivory and gold",
-    weightSize: "22g / 9 cm",
-    notes: "Strong AAYNA fit. Good for Eid reels and gift bundles.",
+    reviewCount: 420,
+    realReviewPhotos: "Yes",
+    moq: 12,
+    recommendedTestQuantity: 12,
+    finalApprovedQuantity: 12,
+    weightSize: "18g",
+    fragilityLevel: "Low",
+    packagingDifficulty: "Easy",
+    courierRisk: "Low",
+    duplicateFound: "No",
+    competitorPrice: 650,
+    marketSaturationLevel: "Medium",
+    contentIdea: "Try-on reel with casual and Eid looks.",
+    reason: "Strong feminine styling, good price fit, and easy content angle.",
+    approvalStatus: "Approved",
+    sourcingStatus: "Approved - Not Ordered",
+    productNameFinalized: "Yes",
+    skuFinalized: "Yes",
+    photosReady: "Yes",
+    descriptionReady: "Yes",
+    priceApproved: "Yes",
     scores: {
-      feminine: 10,
-      trendy: 9,
-      aaynaFit: 9,
-      easyToStyle: 9,
-      lightweight: 8,
-      reelsPhotos: 9,
-      giftability: 8,
-      priceFit: 8,
-      demand: 8,
-      qualityRisk: 7
-    },
-    status: "Watchlist"
+      feminine: 5,
+      trendy: 5,
+      aaynaFit: 5,
+      easyToStyle: 5,
+      lightweight: 5,
+      reelsPhotos: 5,
+      giftability: 4,
+      priceFit: 4,
+      demand: 4,
+      qualityRisk: 4
+    }
   },
   {
-    productName: "Minimal gold hoop set",
+    sku: "",
+    dateAdded: "2026-06-21",
+    productName: "Beaded Choker Necklace",
+    productImageLink: "",
+    category: "Necklace",
     sourcePlatform: "SkyBuyBD",
-    sourceUrl: "https://example.com/gold-hoop-set",
-    imageUrl: "",
-    category: "Jewelry",
-    supplierPrice: 245,
-    currency: "BDT",
-    shippingCost: 30,
-    moq: 10,
-    supplierRating: 4.5,
-    productRating: 4.6,
-    soldCount: 650,
-    material: "Alloy",
-    color: "Gold",
-    weightSize: "18g",
-    notes: "Simple styling product, likely easy website upload.",
+    sourceUrl: "https://skybuybd.com/item/sample2",
+    supplierName: "Skybuy Supplier 14",
+    unitCost: 60,
+    sourceCurrency: "BDT",
+    shippingCostBdt: 10,
+    miscFeesBdt: 12,
+    supplierRating: 4.4,
+    productRating: 4.5,
+    soldCount: 600,
+    reviewCount: 110,
+    realReviewPhotos: "Yes",
+    moq: 20,
+    recommendedTestQuantity: 20,
+    finalApprovedQuantity: 20,
+    weightSize: "22g",
+    fragilityLevel: "Medium",
+    packagingDifficulty: "Medium",
+    courierRisk: "Medium",
+    duplicateFound: "No",
+    competitorPrice: 450,
+    marketSaturationLevel: "Low",
+    contentIdea: "Layered necklace styling photos.",
+    reason: "Good budget product with strong giftability.",
+    approvalStatus: "Pending",
+    sourcingStatus: "Sourcing",
     scores: {
-      feminine: 8,
-      trendy: 7,
-      aaynaFit: 8,
-      easyToStyle: 10,
-      lightweight: 9,
-      reelsPhotos: 7,
-      giftability: 8,
-      priceFit: 9,
-      demand: 7,
-      qualityRisk: 6
-    },
-    status: "Approved"
+      feminine: 5,
+      trendy: 4,
+      aaynaFit: 5,
+      easyToStyle: 4,
+      lightweight: 4,
+      reelsPhotos: 4,
+      giftability: 5,
+      priceFit: 5,
+      demand: 4,
+      qualityRisk: 3
+    }
+  },
+  {
+    sku: "",
+    dateAdded: "2026-06-22",
+    productName: "Designer-Inspired Sunglasses",
+    productImageLink: "",
+    category: "Sunglasses",
+    sourcePlatform: "AliExpress",
+    sourceUrl: "https://www.aliexpress.com/item/sample5",
+    supplierName: "Guangzhou Eyewear Co",
+    unitCost: 15,
+    sourceCurrency: "USD",
+    shippingCostBdt: 50,
+    miscFeesBdt: 15,
+    supplierRating: 4.2,
+    productRating: 4.1,
+    soldCount: 200,
+    reviewCount: 35,
+    realReviewPhotos: "No",
+    moq: 5,
+    recommendedTestQuantity: 5,
+    finalApprovedQuantity: 5,
+    weightSize: "42g",
+    fragilityLevel: "High",
+    packagingDifficulty: "Hard",
+    courierRisk: "High",
+    duplicateFound: "Yes",
+    competitorPrice: 950,
+    marketSaturationLevel: "High",
+    reason: "Likely price review because landed cost pushes retail above target.",
+    approvalStatus: "On Hold",
+    sourcingStatus: "Not Started",
+    scores: {
+      feminine: 3,
+      trendy: 4,
+      aaynaFit: 3,
+      easyToStyle: 4,
+      lightweight: 2,
+      reelsPhotos: 4,
+      giftability: 3,
+      priceFit: 1,
+      demand: 3,
+      qualityRisk: 2
+    }
   }
 ];
 
@@ -95,7 +246,7 @@ const calculatorPreview = document.querySelector("#calculatorPreview");
 const emptyStateTemplate = document.querySelector("#emptyStateTemplate");
 
 function loadProducts() {
-  return JSON.parse(localStorage.getItem("aaynaProducts") || "[]");
+  return JSON.parse(localStorage.getItem("aaynaProducts") || "[]").map(normalizeProduct);
 }
 
 function saveProducts() {
@@ -113,17 +264,65 @@ function saveSettings() {
   localStorage.setItem("aaynaSettings", JSON.stringify(settings));
 }
 
-function money(value) {
-  return `BDT ${Math.round(Number(value || 0)).toLocaleString("en-BD")}`;
+function normalizeProduct(product) {
+  const normalized = { ...FIELD_DEFAULTS, ...product };
+  normalized.productName = product.productName || "";
+  normalized.productImageLink = product.productImageLink || product.imageUrl || "";
+  normalized.unitCost = product.unitCost ?? product.supplierPrice ?? "";
+  normalized.sourceCurrency = product.sourceCurrency || product.currency || "BDT";
+  normalized.shippingCostBdt = product.shippingCostBdt ?? product.shippingCost ?? 0;
+  normalized.approvalStatus = product.approvalStatus || statusToApproval(product.status);
+  normalized.sourcingStatus = product.sourcingStatus || "Not Started";
+  normalized.scores = {};
+  SCORE_FIELDS.forEach(([key]) => {
+    const existing = product.scores?.[key];
+    normalized.scores[key] = existing === undefined ? 3 : clampScore(existing);
+  });
+  return normalized;
 }
 
-function numberValue(id, fallback = 0) {
-  const value = document.querySelector(`#${id}`).value;
-  return value === "" ? fallback : Number(value);
+function statusToApproval(status) {
+  if (status === "Approved") return "Approved";
+  if (status === "Rejected") return "Rejected";
+  if (status === "Watchlist") return "On Hold";
+  return "Pending";
 }
 
-function normalizeDecision(decision) {
-  return decision.toLowerCase().replace(/\s+/g, "-");
+function populateSelect(id, values, includeBlank = false) {
+  const select = document.querySelector(`#${id}`);
+  select.innerHTML = `${includeBlank ? '<option value=""></option>' : ""}${values.map((item) => `<option>${escapeHtml(item)}</option>`).join("")}`;
+}
+
+function initializeDropdowns() {
+  populateSelect("category", DROPDOWNS.category);
+  populateSelect("sourcePlatform", DROPDOWNS.sourcePlatform);
+  populateSelect("sourceCurrency", DROPDOWNS.sourceCurrency);
+  populateSelect("realReviewPhotos", DROPDOWNS.yesNo);
+  populateSelect("fragilityLevel", DROPDOWNS.riskLevel);
+  populateSelect("packagingDifficulty", DROPDOWNS.packagingDifficulty);
+  populateSelect("courierRisk", DROPDOWNS.riskLevel);
+  populateSelect("duplicateFound", DROPDOWNS.yesNo);
+  populateSelect("marketSaturationLevel", DROPDOWNS.riskLevel);
+  populateSelect("approvalStatus", DROPDOWNS.approvalStatus);
+  populateSelect("sourcingStatus", DROPDOWNS.sourcingStatus);
+  populateSelect("productNameFinalized", DROPDOWNS.yesNo);
+  populateSelect("skuFinalized", DROPDOWNS.yesNo);
+  populateSelect("photosReady", DROPDOWNS.yesNo);
+  populateSelect("descriptionReady", DROPDOWNS.yesNo);
+  populateSelect("priceApproved", DROPDOWNS.yesNo);
+  populateSelect("qcStatus", DROPDOWNS.qcStatus);
+  populateSelect("aiToolUsed", DROPDOWNS.aiTool, true);
+  populateSelect("manualScoreAdjusted", DROPDOWNS.yesNo);
+  populateSelect("decisionFilter", DROPDOWNS.decision, true);
+}
+
+function renderScoreInputs() {
+  scoreInputs.innerHTML = SCORE_FIELDS.map(([key, label]) => `
+    <label>
+      ${label}
+      <input id="score-${key}" type="number" min="1" max="5" step="1" value="3" />
+    </label>
+  `).join("");
 }
 
 function currencyRate(currency) {
@@ -132,119 +331,187 @@ function currencyRate(currency) {
   return 1;
 }
 
+function numberValue(id, fallback = 0) {
+  const value = document.querySelector(`#${id}`).value;
+  return value === "" ? fallback : Number(value);
+}
+
+function optionalNumberValue(id) {
+  const value = document.querySelector(`#${id}`).value;
+  return value === "" ? "" : Number(value);
+}
+
+function toNumber(value, fallback = 0) {
+  return value === "" || value === null || value === undefined ? fallback : Number(value);
+}
+
+function clampScore(value) {
+  return Math.max(1, Math.min(5, Number(value || 3)));
+}
+
+function money(value) {
+  return `BDT ${Math.round(Number(value || 0)).toLocaleString("en-BD")}`;
+}
+
+function percent(value) {
+  return `${(Number(value || 0) * 100).toFixed(1)}%`;
+}
+
+function roundToWorkbookPrice(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value / 10) * 10 - 1;
+}
+
+function generateSku(product, index = products.length) {
+  if (product.sku) return product.sku;
+  if (!product.productName) return "";
+  const prefix = CATEGORY_PREFIX[product.category] || "OTH";
+  return `AYN-${prefix}-${String(index + 1).padStart(4, "0")}`;
+}
+
 function calculateCosts(product) {
-  const supplierPriceBdt = Number(product.supplierPrice || 0) * currencyRate(product.currency);
-  const shippingBdt = Number(product.shippingCost || 0) * currencyRate(product.currency);
-  const landedCost = supplierPriceBdt + shippingBdt;
-  const suggestedSellingPrice = landedCost * (1 + Number(settings.markupPercentage || 0) / 100);
-  const expectedProfit = suggestedSellingPrice - landedCost;
-  const profitMargin = suggestedSellingPrice > 0 ? (expectedProfit / suggestedSellingPrice) * 100 : 0;
+  const unitCostBdt = toNumber(product.unitCost) * currencyRate(product.sourceCurrency);
+  const customsRate = product.customsDutyPct === "" || product.customsDutyPct === undefined
+    ? settings.defaultCustomsPct / 100
+    : toNumber(product.customsDutyPct) / 100;
+  const miscFee = product.miscFeesBdt === "" || product.miscFeesBdt === undefined
+    ? settings.defaultMiscFee
+    : toNumber(product.miscFeesBdt);
+  const shipping = toNumber(product.shippingCostBdt);
+  const estimatedLandedCost = unitCostBdt + shipping + (unitCostBdt * customsRate) + miscFee;
+  const suggestedSellingPrice = roundToWorkbookPrice(estimatedLandedCost * (1 + settings.markupPercentage / 100));
+  const expectedProfit = suggestedSellingPrice - estimatedLandedCost;
+  const profitMargin = suggestedSellingPrice > 0 ? expectedProfit / suggestedSellingPrice : 0;
+  const finalApprovedQuantity = Math.max(0, toNumber(product.finalApprovedQuantity));
+  const totalPurchaseCost = estimatedLandedCost * finalApprovedQuantity;
+  const actualLandedCost = product.actualProductCost !== "" && product.actualShippingCost !== ""
+    ? toNumber(product.actualProductCost) + toNumber(product.actualShippingCost)
+    : "";
+  const actualProfit = product.actualSellingPrice !== "" && actualLandedCost !== ""
+    ? toNumber(product.actualSellingPrice) - actualLandedCost
+    : "";
+  const actualProfitMargin = product.actualSellingPrice !== "" && toNumber(product.actualSellingPrice) > 0 && actualProfit !== ""
+    ? actualProfit / toNumber(product.actualSellingPrice)
+    : "";
+  const finalStockAccepted = product.quantityReceived !== "" && product.defectCount !== ""
+    ? Math.max(0, toNumber(product.quantityReceived) - toNumber(product.defectCount))
+    : "";
 
   return {
-    supplierPriceBdt,
-    shippingBdt,
-    landedCost,
+    unitCostBdt,
+    customsRate,
+    miscFee,
+    estimatedLandedCost,
     suggestedSellingPrice,
     expectedProfit,
-    profitMargin
+    profitMargin,
+    totalPurchaseCost,
+    actualLandedCost,
+    actualProfit,
+    actualProfitMargin,
+    finalStockAccepted
   };
 }
 
 function calculateScore(product) {
-  const total = SCORE_FIELDS.reduce((sum, [key]) => sum + Number(product.scores?.[key] || 0), 0);
-  return Math.max(0, Math.min(100, total));
+  const hasAllScores = SCORE_FIELDS.every(([key]) => product.scores?.[key]);
+  if (!hasAllScores) return 0;
+  const weighted = SCORE_FIELDS.reduce((sum, [key, , weight]) => sum + clampScore(product.scores[key]) * weight, 0);
+  return Math.round((weighted / 5) * 100);
 }
 
 function calculateDecision(product) {
   const score = calculateScore(product);
   const costs = calculateCosts(product);
-  const aesthetic = Number(product.scores?.aaynaFit || 0);
-  const qualityRisk = Number(product.scores?.qualityRisk || 0);
+  const aesthetic = clampScore(product.scores?.aaynaFit);
+  const qualityRisk = clampScore(product.scores?.qualityRisk);
 
   if (costs.suggestedSellingPrice > settings.hardRejectPrice) return "Reject";
   if (costs.suggestedSellingPrice > settings.targetMaxPrice) return "Price Review";
-
-  let decision = "Reject";
-  if (score >= 80) decision = "Buy";
-  if (score >= 65 && score < 80) decision = "Maybe";
-  if ((qualityRisk <= 2 || aesthetic <= 2) && decision === "Buy") decision = "Maybe";
-
-  return decision;
+  if (score >= 80) {
+    return qualityRisk <= 2 || aesthetic <= 2 ? "Maybe" : "Buy";
+  }
+  if (score >= 65) return "Maybe";
+  return "Reject";
 }
 
-function purchaseCost(product) {
+function readyForWebsiteUpload(product) {
+  return ["productNameFinalized", "skuFinalized", "photosReady", "descriptionReady", "priceApproved"]
+    .every((key) => product[key] === "Yes");
+}
+
+function isHighRisk(product) {
+  return product.fragilityLevel === "High"
+    || product.courierRisk === "High"
+    || clampScore(product.scores?.qualityRisk) <= 2;
+}
+
+function autoFlag(product) {
   const costs = calculateCosts(product);
-  return costs.landedCost * Math.max(1, Number(product.moq || 1));
+  if (costs.suggestedSellingPrice > settings.targetMaxPrice) return "Price too high";
+  if (clampScore(product.scores?.qualityRisk) <= 2) return "Quality risk";
+  if (clampScore(product.scores?.aaynaFit) <= 2) return "Aesthetic mismatch";
+  if (product.fragilityLevel === "High") return "Too fragile";
+  if (costs.profitMargin < settings.lowProfitThreshold / 100) return "Low profit";
+  if (toNumber(product.moq) > settings.moqWarningThreshold) return "MOQ too high";
+  const decision = calculateDecision(product);
+  if (decision === "Maybe" || decision === "Price Review") return "Needs partner review";
+  if (decision === "Buy") return "Good candidate";
+  return "";
 }
 
-function productWithComputed(product) {
+function productWithComputed(product, index = 0) {
   const costs = calculateCosts(product);
   const score = calculateScore(product);
   const decision = calculateDecision(product);
-  return { ...product, costs, score, decision };
-}
-
-function renderScoreInputs() {
-  scoreInputs.innerHTML = SCORE_FIELDS.map(([key, label]) => `
-    <label>
-      ${label}
-      <input id="score-${key}" type="number" min="0" max="10" step="1" value="5" />
-    </label>
-  `).join("");
+  const sku = generateSku(product, index);
+  return {
+    ...product,
+    sku,
+    costs,
+    score,
+    decision,
+    readyForWebsiteUpload: readyForWebsiteUpload(product),
+    highRisk: isHighRisk(product),
+    autoFlag: autoFlag(product)
+  };
 }
 
 function getFormProduct() {
   const scores = {};
   SCORE_FIELDS.forEach(([key]) => {
-    scores[key] = Number(document.querySelector(`#score-${key}`).value || 0);
+    scores[key] = clampScore(document.querySelector(`#score-${key}`).value);
   });
 
-  return {
+  const product = {
     id: document.querySelector("#productId").value || crypto.randomUUID(),
-    productName: document.querySelector("#productName").value.trim(),
-    sourcePlatform: document.querySelector("#sourcePlatform").value.trim(),
-    sourceUrl: document.querySelector("#sourceUrl").value.trim(),
-    imageUrl: document.querySelector("#imageUrl").value.trim(),
-    category: document.querySelector("#category").value.trim(),
-    supplierPrice: numberValue("supplierPrice"),
-    currency: document.querySelector("#currency").value,
-    shippingCost: numberValue("shippingCost"),
-    moq: numberValue("moq", 1),
-    supplierRating: numberValue("supplierRating"),
-    productRating: numberValue("productRating"),
-    soldCount: numberValue("soldCount"),
-    material: document.querySelector("#material").value.trim(),
-    color: document.querySelector("#color").value.trim(),
-    weightSize: document.querySelector("#weightSize").value.trim(),
-    notes: document.querySelector("#notes").value.trim(),
     scores,
-    status: document.querySelector("#productId").value
-      ? products.find((product) => product.id === document.querySelector("#productId").value)?.status || "New"
-      : "New",
     updatedAt: new Date().toISOString()
   };
+
+  FORM_FIELDS.forEach((id) => {
+    const input = document.querySelector(`#${id}`);
+    if (!input) return;
+    if (input.type === "number") {
+      product[id] = input.value === "" ? "" : Number(input.value);
+    } else {
+      product[id] = input.value.trim();
+    }
+  });
+
+  return normalizeProduct(product);
 }
 
-function setFormProduct(product) {
+function setFormProduct(product = {}) {
+  const normalized = normalizeProduct(product);
   document.querySelector("#productId").value = product.id || "";
-  document.querySelector("#productName").value = product.productName || "";
-  document.querySelector("#sourcePlatform").value = product.sourcePlatform || "";
-  document.querySelector("#sourceUrl").value = product.sourceUrl || "";
-  document.querySelector("#imageUrl").value = product.imageUrl || "";
-  document.querySelector("#category").value = product.category || "";
-  document.querySelector("#supplierPrice").value = product.supplierPrice || "";
-  document.querySelector("#currency").value = product.currency || "BDT";
-  document.querySelector("#shippingCost").value = product.shippingCost || 0;
-  document.querySelector("#moq").value = product.moq || 1;
-  document.querySelector("#supplierRating").value = product.supplierRating || "";
-  document.querySelector("#productRating").value = product.productRating || "";
-  document.querySelector("#soldCount").value = product.soldCount || "";
-  document.querySelector("#material").value = product.material || "";
-  document.querySelector("#color").value = product.color || "";
-  document.querySelector("#weightSize").value = product.weightSize || "";
-  document.querySelector("#notes").value = product.notes || "";
+  FORM_FIELDS.forEach((id) => {
+    const input = document.querySelector(`#${id}`);
+    if (!input) return;
+    input.value = normalized[id] ?? "";
+  });
   SCORE_FIELDS.forEach(([key]) => {
-    document.querySelector(`#score-${key}`).value = product.scores?.[key] ?? 5;
+    document.querySelector(`#score-${key}`).value = normalized.scores?.[key] ?? 3;
   });
   document.querySelector("#formTitle").textContent = product.id ? "Edit Product Candidate" : "Add Product Candidate";
   document.querySelector("#cancelEditBtn").classList.toggle("hidden", !product.id);
@@ -253,30 +520,32 @@ function setFormProduct(product) {
 
 function resetForm() {
   form.reset();
+  const blank = { ...FIELD_DEFAULTS, scores: Object.fromEntries(SCORE_FIELDS.map(([key]) => [key, 3])) };
+  setFormProduct(blank);
   document.querySelector("#productId").value = "";
-  document.querySelector("#currency").value = "BDT";
-  document.querySelector("#shippingCost").value = 0;
-  document.querySelector("#moq").value = 1;
-  SCORE_FIELDS.forEach(([key]) => {
-    document.querySelector(`#score-${key}`).value = 5;
-  });
   document.querySelector("#formTitle").textContent = "Add Product Candidate";
   document.querySelector("#cancelEditBtn").classList.add("hidden");
-  renderCalculatorPreview();
 }
 
 function renderCalculatorPreview() {
   const product = getFormProduct();
   const computed = productWithComputed(product);
-  calculatorPreview.innerHTML = [
-    ["Supplier BDT", money(computed.costs.supplierPriceBdt)],
-    ["Landed cost", money(computed.costs.landedCost)],
+  const items = [
+    ["Unit cost BDT", money(computed.costs.unitCostBdt)],
+    ["Landed cost", money(computed.costs.estimatedLandedCost)],
     ["Selling price", money(computed.costs.suggestedSellingPrice)],
     ["Expected profit", money(computed.costs.expectedProfit)],
-    ["Margin", `${computed.costs.profitMargin.toFixed(1)}%`],
+    ["Profit margin", percent(computed.costs.profitMargin)],
+    ["Total purchase cost", money(computed.costs.totalPurchaseCost)],
+    ["Actual profit", computed.costs.actualProfit === "" ? "-" : money(computed.costs.actualProfit)],
+    ["Actual margin", computed.costs.actualProfitMargin === "" ? "-" : percent(computed.costs.actualProfitMargin)],
+    ["Final stock accepted", computed.costs.finalStockAccepted === "" ? "-" : computed.costs.finalStockAccepted],
     ["Score", `${computed.score}/100`],
-    ["Decision", computed.decision]
-  ].map(([label, value]) => `
+    ["Decision", computed.decision],
+    ["Auto flag", computed.autoFlag || "-"]
+  ];
+
+  calculatorPreview.innerHTML = items.map(([label, value]) => `
     <div class="calc-item">
       <span>${label}</span>
       <strong>${value}</strong>
@@ -292,33 +561,36 @@ function renderSettings() {
 
 function renderStats() {
   const computed = products.map(productWithComputed);
-  const buy = computed.filter((product) => product.decision === "Buy").length;
-  const maybe = computed.filter((product) => product.decision === "Maybe").length;
-  const priceReview = computed.filter((product) => product.decision === "Price Review").length;
-  const reject = computed.filter((product) => product.decision === "Reject").length;
-  const approvedCost = computed
-    .filter((product) => product.status === "Approved")
-    .reduce((sum, product) => sum + purchaseCost(product), 0);
-  const remaining = Math.max(0, settings.monthlyBudget - approvedCost);
-  const used = settings.monthlyBudget > 0 ? (approvedCost / settings.monthlyBudget) * 100 : 0;
-
-  const cards = [
+  const approved = computed.filter((product) => product.approvalStatus === "Approved");
+  const approvedCost = approved.reduce((sum, product) => sum + product.costs.totalPurchaseCost, 0);
+  const remaining = settings.monthlyBudget - approvedCost;
+  const used = settings.monthlyBudget > 0 ? approvedCost / settings.monthlyBudget : 0;
+  const stats = [
     ["Total products", computed.length],
-    ["Buy count", buy],
-    ["Maybe count", maybe],
-    ["Price Review", priceReview],
-    ["Reject count", reject],
-    ["Approved cost", money(approvedCost)],
+    ["Buy count", computed.filter((product) => product.decision === "Buy").length],
+    ["Maybe count", computed.filter((product) => product.decision === "Maybe").length],
+    ["Price Review", computed.filter((product) => product.decision === "Price Review").length],
+    ["Reject count", computed.filter((product) => product.decision === "Reject").length],
+    ["Approved purchase cost", money(approvedCost)],
     ["Remaining budget", money(remaining)],
-    ["Budget used", `${used.toFixed(1)}%`]
+    ["Budget used", percent(used)],
+    ["Website ready", computed.filter((product) => product.readyForWebsiteUpload).length],
+    ["High-risk products", computed.filter((product) => product.highRisk).length],
+    ["Partner review", computed.filter(needsPartnerReview).length]
   ];
 
-  document.querySelector("#statsGrid").innerHTML = cards.map(([label, value]) => `
+  document.querySelector("#statsGrid").innerHTML = stats.map(([label, value]) => `
     <div class="stat-card">
       <span>${label}</span>
       <strong>${value}</strong>
     </div>
   `).join("");
+}
+
+function needsPartnerReview(product) {
+  return (product.decision === "Maybe" || product.decision === "Price Review")
+    && product.approvalStatus !== "Approved"
+    && product.approvalStatus !== "Rejected";
 }
 
 function renderCompactList(id, items) {
@@ -327,12 +599,11 @@ function renderCompactList(id, items) {
     container.innerHTML = emptyStateTemplate.innerHTML;
     return;
   }
-
   container.innerHTML = items.map((product) => `
     <div class="compact-item">
       <div>
         <strong>${escapeHtml(product.productName)}</strong>
-        <div class="meta">${escapeHtml(product.category)} · ${money(product.costs.suggestedSellingPrice)}</div>
+        <div class="meta">${escapeHtml(product.sku)} · ${escapeHtml(product.category)} · ${money(product.costs.suggestedSellingPrice)}</div>
       </div>
       <span class="pill ${normalizeDecision(product.decision)}">${product.score}/100</span>
     </div>
@@ -341,22 +612,16 @@ function renderCompactList(id, items) {
 
 function renderDashboardLists() {
   const computed = products.map(productWithComputed);
-  renderCompactList("topProducts", computed.sort((a, b) => b.score - a.score).slice(0, 5));
-  renderCompactList(
-    "partnerReview",
-    computed.filter((product) => product.decision === "Price Review" || product.decision === "Maybe" || product.status === "Watchlist").slice(0, 5)
-  );
-  renderCompactList(
-    "websiteReady",
-    computed.filter((product) => product.status === "Approved" && product.imageUrl && product.decision !== "Reject").slice(0, 5)
-  );
+  renderCompactList("topProducts", [...computed].sort((a, b) => b.score - a.score).slice(0, 5));
+  renderCompactList("partnerReview", computed.filter(needsPartnerReview).sort((a, b) => b.score - a.score).slice(0, 5));
+  renderCompactList("websiteReady", computed.filter((product) => product.readyForWebsiteUpload).slice(0, 5));
 }
 
 function updateFilterOptions() {
   const selectedCategory = document.querySelector("#categoryFilter").value;
   const selectedSource = document.querySelector("#sourceFilter").value;
-  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort();
-  const sources = [...new Set(products.map((product) => product.sourcePlatform).filter(Boolean))].sort();
+  const categories = [...new Set([...DROPDOWNS.category, ...products.map((product) => product.category).filter(Boolean)])];
+  const sources = [...new Set([...DROPDOWNS.sourcePlatform, ...products.map((product) => product.sourcePlatform).filter(Boolean)])];
   document.querySelector("#categoryFilter").innerHTML = `<option value="">All</option>${categories.map((item) => `<option>${escapeHtml(item)}</option>`).join("")}`;
   document.querySelector("#sourceFilter").innerHTML = `<option value="">All</option>${sources.map((item) => `<option>${escapeHtml(item)}</option>`).join("")}`;
   if (categories.includes(selectedCategory)) document.querySelector("#categoryFilter").value = selectedCategory;
@@ -372,6 +637,7 @@ function getFilteredProducts() {
   const approved = document.querySelector("#approvedFilter").checked;
   const watchlist = document.querySelector("#watchlistFilter").checked;
   const rejected = document.querySelector("#rejectedFilter").checked;
+  const websiteReady = document.querySelector("#websiteReadyFilter").checked;
 
   return products.map(productWithComputed).filter((product) => {
     if (decision && product.decision !== decision) return false;
@@ -379,9 +645,10 @@ function getFilteredProducts() {
     if (source && product.sourcePlatform !== source) return false;
     if (product.score < minScore) return false;
     if (under700 && product.costs.suggestedSellingPrice > 700) return false;
-    if (approved && product.status !== "Approved") return false;
-    if (watchlist && product.status !== "Watchlist") return false;
-    if (rejected && product.status !== "Rejected") return false;
+    if (approved && product.approvalStatus !== "Approved") return false;
+    if (watchlist && product.approvalStatus !== "On Hold") return false;
+    if (rejected && product.approvalStatus !== "Rejected") return false;
+    if (websiteReady && !product.readyForWebsiteUpload) return false;
     return true;
   });
 }
@@ -397,38 +664,44 @@ function renderProductList() {
 
   container.innerHTML = filtered.map((product) => `
     <article class="product-card">
-      ${product.imageUrl
-        ? `<img class="product-image" src="${escapeAttribute(product.imageUrl)}" alt="${escapeAttribute(product.productName)}" />`
+      ${isRenderableImage(product.productImageLink)
+        ? `<img class="product-image" src="${escapeAttribute(product.productImageLink)}" alt="${escapeAttribute(product.productName)}" />`
         : `<div class="product-image placeholder" aria-hidden="true">A</div>`}
       <div>
         <div class="product-head">
           <div>
             <h3>${escapeHtml(product.productName)}</h3>
-            <div class="meta">${escapeHtml(product.sourcePlatform)} · ${escapeHtml(product.category)}</div>
+            <div class="meta">${escapeHtml(product.sku)} · ${escapeHtml(product.sourcePlatform)} · ${escapeHtml(product.category)}</div>
           </div>
           <div class="status-line">
             <span class="pill ${normalizeDecision(product.decision)}">${product.decision}</span>
             <span class="pill">${product.score}/100</span>
-            <span class="pill">${escapeHtml(product.status || "New")}</span>
+            <span class="pill">${escapeHtml(product.approvalStatus)}</span>
+            ${product.readyForWebsiteUpload ? '<span class="pill buy">Website ready</span>' : ""}
           </div>
         </div>
         <div class="product-meta">
           <span class="pill">${money(product.costs.suggestedSellingPrice)} selling</span>
-          <span class="pill">${money(product.costs.landedCost)} landed</span>
-          <span class="pill">${product.costs.profitMargin.toFixed(1)}% margin</span>
-          <span class="pill">MOQ ${Number(product.moq || 1)}</span>
+          <span class="pill">${money(product.costs.estimatedLandedCost)} landed</span>
+          <span class="pill">${percent(product.costs.profitMargin)} margin</span>
+          <span class="pill">${money(product.costs.totalPurchaseCost)} purchase</span>
+          <span class="pill">MOQ ${toNumber(product.moq)}</span>
+          ${product.autoFlag ? `<span class="pill ${product.highRisk ? "reject" : "maybe"}">${escapeHtml(product.autoFlag)}</span>` : ""}
         </div>
         <div class="product-details">
-          <div class="detail"><span>Supplier</span><strong>${money(product.costs.supplierPriceBdt)}</strong></div>
-          <div class="detail"><span>Sold</span><strong>${Number(product.soldCount || 0).toLocaleString()}</strong></div>
-          <div class="detail"><span>Material</span><strong>${escapeHtml(product.material || "-")}</strong></div>
-          <div class="detail"><span>Color</span><strong>${escapeHtml(product.color || "-")}</strong></div>
+          <div class="detail"><span>Supplier</span><strong>${escapeHtml(product.supplierName || "-")}</strong></div>
+          <div class="detail"><span>Sold / Reviews</span><strong>${toNumber(product.soldCount).toLocaleString()} / ${toNumber(product.reviewCount).toLocaleString()}</strong></div>
+          <div class="detail"><span>Risk</span><strong>${escapeHtml(product.fragilityLevel)} / ${escapeHtml(product.courierRisk)}</strong></div>
+          <div class="detail"><span>QC accepted</span><strong>${product.costs.finalStockAccepted === "" ? "-" : product.costs.finalStockAccepted}</strong></div>
         </div>
-        ${product.notes ? `<p class="meta">${escapeHtml(product.notes)}</p>` : ""}
+        ${product.reason ? `<p class="meta">${escapeHtml(product.reason)}</p>` : ""}
         <div class="card-actions">
           <button class="button secondary" data-action="approve" data-id="${product.id}" type="button">Approve</button>
           <button class="button secondary" data-action="watchlist" data-id="${product.id}" type="button">Watchlist</button>
           <button class="button danger" data-action="reject" data-id="${product.id}" type="button">Reject</button>
+          <button class="button secondary" data-action="ordered" data-id="${product.id}" type="button">Mark ordered</button>
+          <button class="button secondary" data-action="arrived" data-id="${product.id}" type="button">Mark arrived</button>
+          <button class="button secondary" data-action="websiteReady" data-id="${product.id}" type="button">Mark website ready</button>
           <button class="button ghost" data-action="edit" data-id="${product.id}" type="button">Edit</button>
           <button class="button ghost" data-action="delete" data-id="${product.id}" type="button">Delete</button>
           ${product.sourceUrl ? `<a class="button ghost" href="${escapeAttribute(product.sourceUrl)}" target="_blank" rel="noreferrer">Open source</a>` : ""}
@@ -438,7 +711,12 @@ function renderProductList() {
   `).join("");
 }
 
+function isRenderableImage(value) {
+  return /^https?:\/\/.+\.(png|jpg|jpeg|webp|gif)(\?.*)?$/i.test(value || "");
+}
+
 function renderAll() {
+  products = products.map(normalizeProduct);
   renderStats();
   renderDashboardLists();
   updateFilterOptions();
@@ -446,8 +724,8 @@ function renderAll() {
   renderCalculatorPreview();
 }
 
-function setStatus(id, status) {
-  products = products.map((product) => product.id === id ? { ...product, status, updatedAt: new Date().toISOString() } : product);
+function setProductPatch(id, patch) {
+  products = products.map((product) => product.id === id ? normalizeProduct({ ...product, ...patch, updatedAt: new Date().toISOString() }) : product);
   saveProducts();
   renderAll();
 }
@@ -462,50 +740,37 @@ function deleteProduct(id) {
 }
 
 function exportApprovedCsv() {
-  const approved = products.map(productWithComputed).filter((product) => product.status === "Approved");
-  if (!approved.length) {
-    alert("No approved products to export yet.");
+  const exportRows = products
+    .map(productWithComputed)
+    .filter((product) => product.approvalStatus === "Approved" && product.readyForWebsiteUpload);
+
+  if (!exportRows.length) {
+    alert("No approved website-ready products to export yet.");
     return;
   }
 
   const headers = [
-    "Product name",
-    "Source platform",
-    "Source URL",
-    "Image URL",
-    "Category",
-    "Supplier price BDT",
-    "Landed cost BDT",
-    "Suggested selling price BDT",
-    "Expected profit BDT",
-    "Profit margin %",
-    "MOQ",
-    "Score",
-    "Decision",
-    "Material",
-    "Color",
-    "Weight/size",
-    "Notes"
+    "SKU", "Product Name", "Category", "Source Platform", "Source URL", "Image/Link",
+    "Suggested Selling Price BDT", "Actual Selling Price BDT", "Final Stock Accepted",
+    "Description Ready", "Photos Ready", "Price Approved", "Score", "Decision", "Content/Reel Idea"
   ];
 
-  const rows = approved.map((product) => [
+  const rows = exportRows.map((product) => [
+    product.sku,
     product.productName,
+    product.category,
     product.sourcePlatform,
     product.sourceUrl,
-    product.imageUrl,
-    product.category,
-    product.costs.supplierPriceBdt.toFixed(2),
-    product.costs.landedCost.toFixed(2),
+    product.productImageLink,
     product.costs.suggestedSellingPrice.toFixed(2),
-    product.costs.expectedProfit.toFixed(2),
-    product.costs.profitMargin.toFixed(2),
-    product.moq,
+    product.actualSellingPrice || "",
+    product.costs.finalStockAccepted,
+    product.descriptionReady,
+    product.photosReady,
+    product.priceApproved,
     product.score,
     product.decision,
-    product.material,
-    product.color,
-    product.weightSize,
-    product.notes
+    product.contentIdea
   ]);
 
   const csv = [headers, ...rows]
@@ -516,9 +781,13 @@ function exportApprovedCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `aayna-approved-products-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `aayna-website-upload-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function normalizeDecision(decision) {
+  return decision.toLowerCase().replace(/\s+/g, "-");
 }
 
 function escapeHtml(value) {
@@ -558,7 +827,11 @@ settingsForm.addEventListener("submit", (event) => {
     markupPercentage: numberValue("markupPercentage", DEFAULT_SETTINGS.markupPercentage),
     targetMaxPrice: numberValue("targetMaxPrice", DEFAULT_SETTINGS.targetMaxPrice),
     hardRejectPrice: numberValue("hardRejectPrice", DEFAULT_SETTINGS.hardRejectPrice),
-    monthlyBudget: numberValue("monthlyBudget", DEFAULT_SETTINGS.monthlyBudget)
+    monthlyBudget: numberValue("monthlyBudget", DEFAULT_SETTINGS.monthlyBudget),
+    lowProfitThreshold: numberValue("lowProfitThreshold", DEFAULT_SETTINGS.lowProfitThreshold),
+    moqWarningThreshold: numberValue("moqWarningThreshold", DEFAULT_SETTINGS.moqWarningThreshold),
+    defaultCustomsPct: numberValue("defaultCustomsPct", DEFAULT_SETTINGS.defaultCustomsPct),
+    defaultMiscFee: numberValue("defaultMiscFee", DEFAULT_SETTINGS.defaultMiscFee)
   };
   saveSettings();
   renderAll();
@@ -568,9 +841,21 @@ document.querySelector("#productList").addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const { action, id } = button.dataset;
-  if (action === "approve") setStatus(id, "Approved");
-  if (action === "watchlist") setStatus(id, "Watchlist");
-  if (action === "reject") setStatus(id, "Rejected");
+  if (action === "approve") setProductPatch(id, { approvalStatus: "Approved", dateDecided: TODAY });
+  if (action === "watchlist") setProductPatch(id, { approvalStatus: "On Hold" });
+  if (action === "reject") setProductPatch(id, { approvalStatus: "Rejected", dateDecided: TODAY });
+  if (action === "ordered") setProductPatch(id, { sourcingStatus: "Ordered" });
+  if (action === "arrived") setProductPatch(id, { sourcingStatus: "Arrived", arrivalDate: TODAY, qcStatus: "QC Pending" });
+  if (action === "websiteReady") {
+    setProductPatch(id, {
+      productNameFinalized: "Yes",
+      skuFinalized: "Yes",
+      photosReady: "Yes",
+      descriptionReady: "Yes",
+      priceApproved: "Yes",
+      sourcingStatus: "Live on Website"
+    });
+  }
   if (action === "delete") deleteProduct(id);
   if (action === "edit") {
     const product = products.find((item) => item.id === id);
@@ -581,16 +866,17 @@ document.querySelector("#productList").addEventListener("click", (event) => {
   }
 });
 
-document.querySelectorAll("#decisionFilter, #categoryFilter, #sourceFilter, #minScoreFilter, #under700Filter, #approvedFilter, #watchlistFilter, #rejectedFilter")
+document.querySelectorAll("#decisionFilter, #categoryFilter, #sourceFilter, #minScoreFilter, #under700Filter, #approvedFilter, #watchlistFilter, #rejectedFilter, #websiteReadyFilter")
   .forEach((input) => input.addEventListener("input", renderProductList));
 
 document.querySelector("#resetFormBtn").addEventListener("click", resetForm);
 document.querySelector("#cancelEditBtn").addEventListener("click", resetForm);
 document.querySelector("#exportCsvBtn").addEventListener("click", exportApprovedCsv);
 document.querySelector("#seedDataBtn").addEventListener("click", () => {
-  const stampedSamples = SAMPLE_PRODUCTS.map((product) => ({
+  const stampedSamples = SAMPLE_PRODUCTS.map((product, index) => normalizeProduct({
     ...product,
     id: crypto.randomUUID(),
+    sku: generateSku(product, index),
     updatedAt: new Date().toISOString()
   }));
   products = [...stampedSamples, ...products];
@@ -598,6 +884,7 @@ document.querySelector("#seedDataBtn").addEventListener("click", () => {
   renderAll();
 });
 
+initializeDropdowns();
 renderScoreInputs();
 renderSettings();
 resetForm();

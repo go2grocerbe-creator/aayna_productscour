@@ -23,7 +23,7 @@
           <a href="#settings">Settings</a>
         </nav>
         <div class="sidebar-note">
-          Human approval only. No scraping, login bypass, CAPTCHA bypass, or auto-ordering.
+          Workbook-based business logic. No scraping, login bypass, CAPTCHA bypass, AI API calls, or auto-ordering.
         </div>
       </aside>
 
@@ -31,39 +31,33 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Bangladesh women’s accessories sourcing</p>
-            <h2>Discover, score, and shortlist product candidates.</h2>
+            <h2>A workbook-powered web MVP for scouting, scoring, QC, and upload readiness.</h2>
           </div>
           <div class="topbar-actions">
-            <button id="seedDataBtn" class="button secondary" type="button">Load samples</button>
-            <button id="exportCsvBtn" class="button primary" type="button">Export approved CSV</button>
+            <button id="seedDataBtn" class="button secondary" type="button">Load workbook samples</button>
+            <button id="exportCsvBtn" class="button primary" type="button">Export website CSV</button>
           </div>
         </header>
 
         <section id="dashboard" class="section">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Overview</p>
+              <p class="eyebrow">Live view</p>
               <h2>Dashboard</h2>
             </div>
           </div>
           <div id="statsGrid" class="stats-grid"></div>
           <div class="dashboard-grid">
             <div class="panel">
-              <div class="panel-heading">
-                <h3>Top Scoring Products</h3>
-              </div>
+              <div class="panel-heading"><h3>Top Scoring Products</h3></div>
               <div id="topProducts" class="compact-list"></div>
             </div>
             <div class="panel">
-              <div class="panel-heading">
-                <h3>Partner Review</h3>
-              </div>
+              <div class="panel-heading"><h3>Partner Review</h3></div>
               <div id="partnerReview" class="compact-list"></div>
             </div>
             <div class="panel">
-              <div class="panel-heading">
-                <h3>Website Upload Ready</h3>
-              </div>
+              <div class="panel-heading"><h3>Website Upload Ready</h3></div>
               <div id="websiteReady" class="compact-list"></div>
             </div>
           </div>
@@ -72,7 +66,7 @@
         <section id="candidate-form" class="section">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Candidate intake</p>
+              <p class="eyebrow">Product Tracker</p>
               <h2 id="formTitle">Add Product Candidate</h2>
             </div>
             <button id="resetFormBtn" class="button ghost" type="button">Clear form</button>
@@ -80,78 +74,205 @@
 
           <form id="productForm" class="form-grid">
             <input type="hidden" id="productId" />
-            <div class="field span-2">
-              <label for="productName">Product name</label>
-              <input id="productName" required placeholder="Pearl bow hair claw" />
-            </div>
-            <div class="field">
-              <label for="sourcePlatform">Source platform</label>
-              <input id="sourcePlatform" required placeholder="SkyBuyBD, AliExpress" />
-            </div>
-            <div class="field">
-              <label for="category">Category</label>
-              <input id="category" required placeholder="Hair accessories" />
-            </div>
-            <div class="field span-2">
-              <label for="sourceUrl">Source URL</label>
-              <input id="sourceUrl" type="url" placeholder="https://..." />
-            </div>
-            <div class="field span-2">
-              <label for="imageUrl">Product image URL</label>
-              <input id="imageUrl" type="url" placeholder="https://..." />
-            </div>
-            <div class="field">
-              <label for="supplierPrice">Supplier price</label>
-              <input id="supplierPrice" type="number" min="0" step="0.01" required />
-            </div>
-            <div class="field">
-              <label for="currency">Currency</label>
-              <select id="currency">
-                <option>BDT</option>
-                <option>USD</option>
-                <option>RMB</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="shippingCost">Estimated shipping cost</label>
-              <input id="shippingCost" type="number" min="0" step="0.01" value="0" />
-            </div>
-            <div class="field">
-              <label for="moq">MOQ</label>
-              <input id="moq" type="number" min="1" step="1" value="1" />
-            </div>
-            <div class="field">
-              <label for="supplierRating">Supplier rating</label>
-              <input id="supplierRating" type="number" min="0" max="5" step="0.1" placeholder="4.7" />
-            </div>
-            <div class="field">
-              <label for="productRating">Product rating</label>
-              <input id="productRating" type="number" min="0" max="5" step="0.1" placeholder="4.8" />
-            </div>
-            <div class="field">
-              <label for="soldCount">Sold count</label>
-              <input id="soldCount" type="number" min="0" step="1" placeholder="1250" />
-            </div>
-            <div class="field">
-              <label for="material">Material</label>
-              <input id="material" placeholder="Alloy, pearl, satin" />
-            </div>
-            <div class="field">
-              <label for="color">Color</label>
-              <input id="color" placeholder="Gold, rose, ivory" />
-            </div>
-            <div class="field">
-              <label for="weightSize">Weight/size</label>
-              <input id="weightSize" placeholder="18g / 8 cm" />
-            </div>
-            <div class="field span-2">
-              <label for="notes">Notes</label>
-              <textarea id="notes" rows="4" placeholder="Supplier notes, reel ideas, concerns, links to competitor products"></textarea>
-            </div>
+
+            <fieldset class="form-section span-2">
+              <legend>Candidate Basics</legend>
+              <div class="form-grid nested-grid">
+                <div class="field">
+                  <label for="dateAdded">Date added</label>
+                  <input id="dateAdded" type="date" />
+                </div>
+                <div class="field">
+                  <label for="sku">SKU</label>
+                  <input id="sku" placeholder="Auto-generated if blank" />
+                </div>
+                <div class="field span-2">
+                  <label for="productName">Product name</label>
+                  <input id="productName" required placeholder="Antique gold hoop earrings" />
+                </div>
+                <div class="field">
+                  <label for="category">Category</label>
+                  <select id="category"></select>
+                </div>
+                <div class="field">
+                  <label for="sourcePlatform">Source platform</label>
+                  <select id="sourcePlatform"></select>
+                </div>
+                <div class="field span-2">
+                  <label for="productImageLink">Product image/link</label>
+                  <input id="productImageLink" placeholder="Image URL, Drive link, or product photo reference" />
+                </div>
+                <div class="field span-2">
+                  <label for="sourceUrl">Source URL</label>
+                  <input id="sourceUrl" type="url" placeholder="https://..." />
+                </div>
+                <div class="field">
+                  <label for="supplierName">Supplier name</label>
+                  <input id="supplierName" placeholder="Supplier or store name" />
+                </div>
+                <div class="field">
+                  <label for="supplierRating">Supplier rating</label>
+                  <input id="supplierRating" type="number" min="0" max="5" step="0.1" />
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section span-2">
+              <legend>Cost Inputs</legend>
+              <div class="form-grid nested-grid">
+                <div class="field">
+                  <label for="unitCost">Unit cost</label>
+                  <input id="unitCost" type="number" min="0" step="0.01" required />
+                </div>
+                <div class="field">
+                  <label for="sourceCurrency">Source currency</label>
+                  <select id="sourceCurrency"></select>
+                </div>
+                <div class="field">
+                  <label for="shippingCostBdt">Shipping cost/unit (BDT)</label>
+                  <input id="shippingCostBdt" type="number" min="0" step="0.01" value="0" />
+                </div>
+                <div class="field">
+                  <label for="customsDutyPct">Customs/duty %</label>
+                  <input id="customsDutyPct" type="number" min="0" step="0.01" placeholder="Uses default if blank" />
+                </div>
+                <div class="field">
+                  <label for="miscFeesBdt">Misc fees/unit (BDT)</label>
+                  <input id="miscFeesBdt" type="number" min="0" step="0.01" placeholder="Uses default if blank" />
+                </div>
+                <div class="field">
+                  <label for="moq">MOQ</label>
+                  <input id="moq" type="number" min="1" step="1" value="1" />
+                </div>
+                <div class="field">
+                  <label for="recommendedTestQuantity">Recommended test quantity</label>
+                  <input id="recommendedTestQuantity" type="number" min="0" step="1" />
+                </div>
+                <div class="field">
+                  <label for="finalApprovedQuantity">Final approved quantity</label>
+                  <input id="finalApprovedQuantity" type="number" min="0" step="1" />
+                </div>
+              </div>
+            </fieldset>
 
             <fieldset class="score-fieldset span-2">
-              <legend>Rule-Based Score Placeholder</legend>
+              <legend>AAYNA 10-Criteria Score (1-5)</legend>
               <div id="scoreInputs" class="score-grid"></div>
+            </fieldset>
+
+            <fieldset class="form-section span-2">
+              <legend>Market, Risk, and Content</legend>
+              <div class="form-grid nested-grid">
+                <div class="field">
+                  <label for="productRating">Product rating</label>
+                  <input id="productRating" type="number" min="0" max="5" step="0.1" />
+                </div>
+                <div class="field">
+                  <label for="soldCount">Sold/order count</label>
+                  <input id="soldCount" type="number" min="0" step="1" />
+                </div>
+                <div class="field">
+                  <label for="reviewCount">Review count</label>
+                  <input id="reviewCount" type="number" min="0" step="1" />
+                </div>
+                <div class="field">
+                  <label for="realReviewPhotos">Real review photos?</label>
+                  <select id="realReviewPhotos"></select>
+                </div>
+                <div class="field">
+                  <label for="weightSize">Weight / size</label>
+                  <input id="weightSize" placeholder="18g / 8 cm" />
+                </div>
+                <div class="field">
+                  <label for="fragilityLevel">Fragility level</label>
+                  <select id="fragilityLevel"></select>
+                </div>
+                <div class="field">
+                  <label for="packagingDifficulty">Packaging difficulty</label>
+                  <select id="packagingDifficulty"></select>
+                </div>
+                <div class="field">
+                  <label for="courierRisk">Courier risk</label>
+                  <select id="courierRisk"></select>
+                </div>
+                <div class="field">
+                  <label for="duplicateFound">Duplicate found on BD market?</label>
+                  <select id="duplicateFound"></select>
+                </div>
+                <div class="field">
+                  <label for="competitorPrice">Competitor price (BDT)</label>
+                  <input id="competitorPrice" type="number" min="0" step="1" />
+                </div>
+                <div class="field">
+                  <label for="marketSaturationLevel">Market saturation level</label>
+                  <select id="marketSaturationLevel"></select>
+                </div>
+                <div class="field span-2">
+                  <label for="contentIdea">Content/reel idea</label>
+                  <textarea id="contentIdea" rows="3"></textarea>
+                </div>
+                <div class="field span-2">
+                  <label for="reason">Decision reason</label>
+                  <textarea id="reason" rows="3"></textarea>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section span-2">
+              <legend>Approval and Operations</legend>
+              <div class="form-grid nested-grid">
+                <div class="field">
+                  <label for="approvalStatus">Approval status</label>
+                  <select id="approvalStatus"></select>
+                </div>
+                <div class="field">
+                  <label for="approvedBy">Approved by</label>
+                  <input id="approvedBy" />
+                </div>
+                <div class="field">
+                  <label for="dateDecided">Date decided</label>
+                  <input id="dateDecided" type="date" />
+                </div>
+                <div class="field">
+                  <label for="sourcingStatus">Sourcing status</label>
+                  <select id="sourcingStatus"></select>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section span-2">
+              <legend>Website Upload Readiness</legend>
+              <div class="form-grid nested-grid">
+                <div class="field"><label for="productNameFinalized">Product name finalized?</label><select id="productNameFinalized"></select></div>
+                <div class="field"><label for="skuFinalized">SKU finalized?</label><select id="skuFinalized"></select></div>
+                <div class="field"><label for="photosReady">Photos ready?</label><select id="photosReady"></select></div>
+                <div class="field"><label for="descriptionReady">Description ready?</label><select id="descriptionReady"></select></div>
+                <div class="field"><label for="priceApproved">Price approved?</label><select id="priceApproved"></select></div>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section span-2">
+              <legend>QC After Arrival</legend>
+              <div class="form-grid nested-grid">
+                <div class="field"><label for="actualProductCost">Actual product cost (BDT)</label><input id="actualProductCost" type="number" min="0" step="0.01" /></div>
+                <div class="field"><label for="actualShippingCost">Actual shipping cost (BDT)</label><input id="actualShippingCost" type="number" min="0" step="0.01" /></div>
+                <div class="field"><label for="actualSellingPrice">Actual selling price (BDT)</label><input id="actualSellingPrice" type="number" min="0" step="1" /></div>
+                <div class="field"><label for="arrivalDate">Arrival date</label><input id="arrivalDate" type="date" /></div>
+                <div class="field"><label for="quantityReceived">Quantity received</label><input id="quantityReceived" type="number" min="0" step="1" /></div>
+                <div class="field"><label for="defectCount">Defect count</label><input id="defectCount" type="number" min="0" step="1" /></div>
+                <div class="field"><label for="qcStatus">QC status</label><select id="qcStatus"></select></div>
+                <div class="field span-2"><label for="qcNotes">QC notes</label><textarea id="qcNotes" rows="3"></textarea></div>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section span-2">
+              <legend>AI Scoring Trace Placeholder</legend>
+              <div class="form-grid nested-grid">
+                <div class="field"><label for="aiToolUsed">AI tool used</label><select id="aiToolUsed"></select></div>
+                <div class="field"><label for="aiScoreDate">AI score date</label><input id="aiScoreDate" type="date" /></div>
+                <div class="field"><label for="scoredBy">Scored by</label><input id="scoredBy" placeholder="Human reviewer name" /></div>
+                <div class="field"><label for="manualScoreAdjusted">Manual score adjusted?</label><select id="manualScoreAdjusted"></select></div>
+              </div>
             </fieldset>
 
             <div class="calculator-preview span-2" id="calculatorPreview"></div>
@@ -170,48 +291,15 @@
             </div>
           </div>
           <div class="filters">
-            <label>
-              Decision
-              <select id="decisionFilter">
-                <option value="">All</option>
-                <option>Buy</option>
-                <option>Maybe</option>
-                <option>Price Review</option>
-                <option>Reject</option>
-              </select>
-            </label>
-            <label>
-              Category
-              <select id="categoryFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-            <label>
-              Source
-              <select id="sourceFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-            <label>
-              Minimum score
-              <input id="minScoreFilter" type="number" min="0" max="100" placeholder="0" />
-            </label>
-            <label class="check-filter">
-              <input id="under700Filter" type="checkbox" />
-              Under BDT 700
-            </label>
-            <label class="check-filter">
-              <input id="approvedFilter" type="checkbox" />
-              Approved
-            </label>
-            <label class="check-filter">
-              <input id="watchlistFilter" type="checkbox" />
-              Watchlist
-            </label>
-            <label class="check-filter">
-              <input id="rejectedFilter" type="checkbox" />
-              Rejected
-            </label>
+            <label>Decision<select id="decisionFilter"><option value="">All</option></select></label>
+            <label>Category<select id="categoryFilter"><option value="">All</option></select></label>
+            <label>Source<select id="sourceFilter"><option value="">All</option></select></label>
+            <label>Minimum score<input id="minScoreFilter" type="number" min="0" max="100" placeholder="0" /></label>
+            <label class="check-filter"><input id="under700Filter" type="checkbox" />Under BDT 700</label>
+            <label class="check-filter"><input id="approvedFilter" type="checkbox" />Approved</label>
+            <label class="check-filter"><input id="watchlistFilter" type="checkbox" />Watchlist</label>
+            <label class="check-filter"><input id="rejectedFilter" type="checkbox" />Rejected</label>
+            <label class="check-filter"><input id="websiteReadyFilter" type="checkbox" />Website ready</label>
           </div>
           <div id="productList" class="product-list"></div>
         </section>
@@ -219,35 +307,21 @@
         <section id="settings" class="section">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Calculator controls</p>
+              <p class="eyebrow">Workbook assumptions</p>
               <h2>Settings</h2>
             </div>
           </div>
           <form id="settingsForm" class="settings-grid">
-            <label>
-              USD to BDT rate
-              <input id="usdRate" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              RMB to BDT rate
-              <input id="rmbRate" type="number" min="0" step="0.01" />
-            </label>
-            <label>
-              Markup percentage
-              <input id="markupPercentage" type="number" min="0" step="1" />
-            </label>
-            <label>
-              Target max selling price
-              <input id="targetMaxPrice" type="number" min="0" step="1" />
-            </label>
-            <label>
-              Hard reject price
-              <input id="hardRejectPrice" type="number" min="0" step="1" />
-            </label>
-            <label>
-              Monthly inventory budget
-              <input id="monthlyBudget" type="number" min="0" step="1" />
-            </label>
+            <label>USD to BDT rate<input id="usdRate" type="number" min="0" step="0.01" /></label>
+            <label>RMB to BDT rate<input id="rmbRate" type="number" min="0" step="0.01" /></label>
+            <label>Markup percentage<input id="markupPercentage" type="number" min="0" step="1" /></label>
+            <label>Max selling price<input id="targetMaxPrice" type="number" min="0" step="1" /></label>
+            <label>Hard reject price<input id="hardRejectPrice" type="number" min="0" step="1" /></label>
+            <label>Monthly inventory budget<input id="monthlyBudget" type="number" min="0" step="1" /></label>
+            <label>Low profit threshold %<input id="lowProfitThreshold" type="number" min="0" step="1" /></label>
+            <label>MOQ warning threshold<input id="moqWarningThreshold" type="number" min="0" step="1" /></label>
+            <label>Default customs/duty %<input id="defaultCustomsPct" type="number" min="0" step="0.1" /></label>
+            <label>Default misc fee/unit<input id="defaultMiscFee" type="number" min="0" step="1" /></label>
             <div class="form-actions span-2">
               <button class="button primary" type="submit">Save settings</button>
             </div>
