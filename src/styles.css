@@ -163,6 +163,10 @@ a {
   gap: 10px;
 }
 
+.card-actions {
+  margin-top: 12px;
+}
+
 .button {
   border: 1px solid transparent;
   border-radius: 8px;
@@ -323,6 +327,23 @@ a {
   gap: 14px;
 }
 
+.form-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fffefd;
+}
+
+.form-section legend {
+  padding: 0 8px;
+  color: var(--dusty-rose);
+  font-weight: 900;
+}
+
+.nested-grid {
+  margin-top: 4px;
+}
+
 .field,
 .settings-grid label,
 .filters label {
@@ -388,7 +409,7 @@ textarea {
 
 .calculator-preview {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   padding: 14px;
   border-radius: 8px;
