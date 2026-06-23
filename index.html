@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AAYNA Product Scout Agent</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-lockup">
+          <div class="brand-mark">A</div>
+          <div>
+            <p class="eyebrow">AAYNA</p>
+            <h1>Product Scout</h1>
+          </div>
+        </div>
+        <nav class="nav-list" aria-label="Primary">
+          <a href="#dashboard">Dashboard</a>
+          <a href="#candidate-form">Add Candidate</a>
+          <a href="#products">Products</a>
+          <a href="#settings">Settings</a>
+        </nav>
+        <div class="sidebar-note">
+          Human approval only. No scraping, login bypass, CAPTCHA bypass, or auto-ordering.
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Bangladesh women’s accessories sourcing</p>
+            <h2>Discover, score, and shortlist product candidates.</h2>
+          </div>
+          <div class="topbar-actions">
+            <button id="seedDataBtn" class="button secondary" type="button">Load samples</button>
+            <button id="exportCsvBtn" class="button primary" type="button">Export approved CSV</button>
+          </div>
+        </header>
+
+        <section id="dashboard" class="section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Overview</p>
+              <h2>Dashboard</h2>
+            </div>
+          </div>
+          <div id="statsGrid" class="stats-grid"></div>
+          <div class="dashboard-grid">
+            <div class="panel">
+              <div class="panel-heading">
+                <h3>Top Scoring Products</h3>
+              </div>
+              <div id="topProducts" class="compact-list"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-heading">
+                <h3>Partner Review</h3>
+              </div>
+              <div id="partnerReview" class="compact-list"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-heading">
+                <h3>Website Upload Ready</h3>
+              </div>
+              <div id="websiteReady" class="compact-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="candidate-form" class="section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Candidate intake</p>
+              <h2 id="formTitle">Add Product Candidate</h2>
+            </div>
+            <button id="resetFormBtn" class="button ghost" type="button">Clear form</button>
+          </div>
+
+          <form id="productForm" class="form-grid">
+            <input type="hidden" id="productId" />
+            <div class="field span-2">
+              <label for="productName">Product name</label>
+              <input id="productName" required placeholder="Pearl bow hair claw" />
+            </div>
+            <div class="field">
+              <label for="sourcePlatform">Source platform</label>
+              <input id="sourcePlatform" required placeholder="SkyBuyBD, AliExpress" />
+            </div>
+            <div class="field">
+              <label for="category">Category</label>
+              <input id="category" required placeholder="Hair accessories" />
+            </div>
+            <div class="field span-2">
+              <label for="sourceUrl">Source URL</label>
+              <input id="sourceUrl" type="url" placeholder="https://..." />
+            </div>
+            <div class="field span-2">
+              <label for="imageUrl">Product image URL</label>
+              <input id="imageUrl" type="url" placeholder="https://..." />
+            </div>
+            <div class="field">
+              <label for="supplierPrice">Supplier price</label>
+              <input id="supplierPrice" type="number" min="0" step="0.01" required />
+            </div>
+            <div class="field">
+              <label for="currency">Currency</label>
+              <select id="currency">
+                <option>BDT</option>
+                <option>USD</option>
+                <option>RMB</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="shippingCost">Estimated shipping cost</label>
+              <input id="shippingCost" type="number" min="0" step="0.01" value="0" />
+            </div>
+            <div class="field">
+              <label for="moq">MOQ</label>
+              <input id="moq" type="number" min="1" step="1" value="1" />
+            </div>
+            <div class="field">
+              <label for="supplierRating">Supplier rating</label>
+              <input id="supplierRating" type="number" min="0" max="5" step="0.1" placeholder="4.7" />
+            </div>
+            <div class="field">
+              <label for="productRating">Product rating</label>
+              <input id="productRating" type="number" min="0" max="5" step="0.1" placeholder="4.8" />
+            </div>
+            <div class="field">
+              <label for="soldCount">Sold count</label>
+              <input id="soldCount" type="number" min="0" step="1" placeholder="1250" />
+            </div>
+            <div class="field">
+              <label for="material">Material</label>
+              <input id="material" placeholder="Alloy, pearl, satin" />
+            </div>
+            <div class="field">
+              <label for="color">Color</label>
+              <input id="color" placeholder="Gold, rose, ivory" />
+            </div>
+            <div class="field">
+              <label for="weightSize">Weight/size</label>
+              <input id="weightSize" placeholder="18g / 8 cm" />
+            </div>
+            <div class="field span-2">
+              <label for="notes">Notes</label>
+              <textarea id="notes" rows="4" placeholder="Supplier notes, reel ideas, concerns, links to competitor products"></textarea>
+            </div>
+
+            <fieldset class="score-fieldset span-2">
+              <legend>Rule-Based Score Placeholder</legend>
+              <div id="scoreInputs" class="score-grid"></div>
+            </fieldset>
+
+            <div class="calculator-preview span-2" id="calculatorPreview"></div>
+            <div class="form-actions span-2">
+              <button class="button primary" type="submit">Save candidate</button>
+              <button id="cancelEditBtn" class="button ghost hidden" type="button">Cancel edit</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="products" class="section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Shortlist</p>
+              <h2>Product List</h2>
+            </div>
+          </div>
+          <div class="filters">
+            <label>
+              Decision
+              <select id="decisionFilter">
+                <option value="">All</option>
+                <option>Buy</option>
+                <option>Maybe</option>
+                <option>Price Review</option>
+                <option>Reject</option>
+              </select>
+            </label>
+            <label>
+              Category
+              <select id="categoryFilter">
+                <option value="">All</option>
+              </select>
+            </label>
+            <label>
+              Source
+              <select id="sourceFilter">
+                <option value="">All</option>
+              </select>
+            </label>
+            <label>
+              Minimum score
+              <input id="minScoreFilter" type="number" min="0" max="100" placeholder="0" />
+            </label>
+            <label class="check-filter">
+              <input id="under700Filter" type="checkbox" />
+              Under BDT 700
+            </label>
+            <label class="check-filter">
+              <input id="approvedFilter" type="checkbox" />
+              Approved
+            </label>
+            <label class="check-filter">
+              <input id="watchlistFilter" type="checkbox" />
+              Watchlist
+            </label>
+            <label class="check-filter">
+              <input id="rejectedFilter" type="checkbox" />
+              Rejected
+            </label>
+          </div>
+          <div id="productList" class="product-list"></div>
+        </section>
+
+        <section id="settings" class="section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Calculator controls</p>
+              <h2>Settings</h2>
+            </div>
+          </div>
+          <form id="settingsForm" class="settings-grid">
+            <label>
+              USD to BDT rate
+              <input id="usdRate" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              RMB to BDT rate
+              <input id="rmbRate" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              Markup percentage
+              <input id="markupPercentage" type="number" min="0" step="1" />
+            </label>
+            <label>
+              Target max selling price
+              <input id="targetMaxPrice" type="number" min="0" step="1" />
+            </label>
+            <label>
+              Hard reject price
+              <input id="hardRejectPrice" type="number" min="0" step="1" />
+            </label>
+            <label>
+              Monthly inventory budget
+              <input id="monthlyBudget" type="number" min="0" step="1" />
+            </label>
+            <div class="form-actions span-2">
+              <button class="button primary" type="submit">Save settings</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">No products match this view yet.</div>
+    </template>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
