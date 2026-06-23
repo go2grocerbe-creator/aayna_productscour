@@ -218,6 +218,26 @@ a {
   margin-bottom: 18px;
 }
 
+.message {
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-weight: 800;
+}
+
+.message.success {
+  background: #edf7f1;
+  border-color: #c9dfd2;
+  color: var(--success);
+}
+
+.message.error {
+  background: #fff0ed;
+  border-color: #efcbc4;
+  color: var(--danger);
+}
+
 .section-heading h2 {
   font-size: 28px;
 }
@@ -334,6 +354,20 @@ a {
   background: #fffefd;
 }
 
+.form-section summary,
+.score-fieldset summary {
+  cursor: pointer;
+  list-style-position: inside;
+  color: var(--dusty-rose);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.form-section summary::-webkit-details-marker,
+.score-fieldset summary::-webkit-details-marker {
+  color: var(--antique-gold);
+}
+
 .form-section legend {
   padding: 0 8px;
   color: var(--dusty-rose);
@@ -420,6 +454,10 @@ textarea {
   padding: 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.7);
+}
+
+.calc-wide {
+  grid-column: span 2;
 }
 
 .calc-item span {

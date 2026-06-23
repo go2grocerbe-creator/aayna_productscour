@@ -30,7 +30,7 @@
       <main class="main-content">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Bangladesh women’s accessories sourcing</p>
+            <p class="eyebrow">Bangladesh women's accessories sourcing</p>
             <h2>A workbook-powered web MVP for scouting, scoring, QC, and upload readiness.</h2>
           </div>
           <div class="topbar-actions">
@@ -71,12 +71,13 @@
             </div>
             <button id="resetFormBtn" class="button ghost" type="button">Clear form</button>
           </div>
+          <div id="formMessage" class="message hidden" role="status"></div>
 
           <form id="productForm" class="form-grid">
             <input type="hidden" id="productId" />
 
-            <fieldset class="form-section span-2">
-              <legend>Candidate Basics</legend>
+            <details class="form-section span-2" open>
+              <summary>Product Basics</summary>
               <div class="form-grid nested-grid">
                 <div class="field">
                   <label for="dateAdded">Date added</label>
@@ -115,10 +116,10 @@
                   <input id="supplierRating" type="number" min="0" max="5" step="0.1" />
                 </div>
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset class="form-section span-2">
-              <legend>Cost Inputs</legend>
+            <details class="form-section span-2" open>
+              <summary>Cost &amp; Pricing</summary>
               <div class="form-grid nested-grid">
                 <div class="field">
                   <label for="unitCost">Unit cost</label>
@@ -153,15 +154,15 @@
                   <input id="finalApprovedQuantity" type="number" min="0" step="1" />
                 </div>
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset class="score-fieldset span-2">
-              <legend>AAYNA 10-Criteria Score (1-5)</legend>
+            <details class="score-fieldset span-2" open>
+              <summary>AAYNA 10-Criteria Score</summary>
               <div id="scoreInputs" class="score-grid"></div>
-            </fieldset>
+            </details>
 
-            <fieldset class="form-section span-2">
-              <legend>Market, Risk, and Content</legend>
+            <details class="form-section span-2">
+              <summary>Market, Risk, and Content</summary>
               <div class="form-grid nested-grid">
                 <div class="field">
                   <label for="productRating">Product rating</label>
@@ -216,10 +217,10 @@
                   <textarea id="reason" rows="3"></textarea>
                 </div>
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset class="form-section span-2">
-              <legend>Approval and Operations</legend>
+            <details class="form-section span-2">
+              <summary>Approval and Operations</summary>
               <div class="form-grid nested-grid">
                 <div class="field">
                   <label for="approvalStatus">Approval status</label>
@@ -238,10 +239,10 @@
                   <select id="sourcingStatus"></select>
                 </div>
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset class="form-section span-2">
-              <legend>Website Upload Readiness</legend>
+            <details class="form-section span-2">
+              <summary>Website Upload Readiness</summary>
               <div class="form-grid nested-grid">
                 <div class="field"><label for="productNameFinalized">Product name finalized?</label><select id="productNameFinalized"></select></div>
                 <div class="field"><label for="skuFinalized">SKU finalized?</label><select id="skuFinalized"></select></div>
@@ -249,10 +250,10 @@
                 <div class="field"><label for="descriptionReady">Description ready?</label><select id="descriptionReady"></select></div>
                 <div class="field"><label for="priceApproved">Price approved?</label><select id="priceApproved"></select></div>
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset class="form-section span-2">
-              <legend>QC After Arrival</legend>
+            <details class="form-section span-2">
+              <summary>QC After Arrival</summary>
               <div class="form-grid nested-grid">
                 <div class="field"><label for="actualProductCost">Actual product cost (BDT)</label><input id="actualProductCost" type="number" min="0" step="0.01" /></div>
                 <div class="field"><label for="actualShippingCost">Actual shipping cost (BDT)</label><input id="actualShippingCost" type="number" min="0" step="0.01" /></div>
@@ -263,17 +264,17 @@
                 <div class="field"><label for="qcStatus">QC status</label><select id="qcStatus"></select></div>
                 <div class="field span-2"><label for="qcNotes">QC notes</label><textarea id="qcNotes" rows="3"></textarea></div>
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset class="form-section span-2">
-              <legend>AI Scoring Trace Placeholder</legend>
+            <details class="form-section span-2">
+              <summary>AI Scoring Trace</summary>
               <div class="form-grid nested-grid">
                 <div class="field"><label for="aiToolUsed">AI tool used</label><select id="aiToolUsed"></select></div>
                 <div class="field"><label for="aiScoreDate">AI score date</label><input id="aiScoreDate" type="date" /></div>
                 <div class="field"><label for="scoredBy">Scored by</label><input id="scoredBy" placeholder="Human reviewer name" /></div>
                 <div class="field"><label for="manualScoreAdjusted">Manual score adjusted?</label><select id="manualScoreAdjusted"></select></div>
               </div>
-            </fieldset>
+            </details>
 
             <div class="calculator-preview span-2" id="calculatorPreview"></div>
             <div class="form-actions span-2">

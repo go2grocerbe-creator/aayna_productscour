@@ -13,6 +13,9 @@ const DEFAULT_SETTINGS = {
   moqWarningThreshold: 50
 };
 
+const BUY_THRESHOLD = 80;
+const MAYBE_THRESHOLD = 65;
+
 const SCORE_FIELDS = [
   ["feminine", "Feminine", 0.1],
   ["trendy", "Trendy", 0.1],
@@ -178,16 +181,16 @@ const SAMPLE_PRODUCTS = [
     approvalStatus: "Pending",
     sourcingStatus: "Sourcing",
     scores: {
-      feminine: 5,
-      trendy: 4,
-      aaynaFit: 5,
+      feminine: 4,
+      trendy: 3,
+      aaynaFit: 4,
       easyToStyle: 4,
       lightweight: 4,
-      reelsPhotos: 4,
-      giftability: 5,
-      priceFit: 5,
-      demand: 4,
-      qualityRisk: 3
+      reelsPhotos: 3,
+      giftability: 4,
+      priceFit: 4,
+      demand: 3,
+      qualityRisk: 4
     }
   },
   {
@@ -199,7 +202,7 @@ const SAMPLE_PRODUCTS = [
     sourcePlatform: "AliExpress",
     sourceUrl: "https://www.aliexpress.com/item/sample5",
     supplierName: "Guangzhou Eyewear Co",
-    unitCost: 15,
+    unitCost: 3.3,
     sourceCurrency: "USD",
     shippingCostBdt: 50,
     miscFeesBdt: 15,
@@ -218,7 +221,7 @@ const SAMPLE_PRODUCTS = [
     duplicateFound: "Yes",
     competitorPrice: 950,
     marketSaturationLevel: "High",
-    reason: "Likely price review because landed cost pushes retail above target.",
+    reason: "Likely price review because landed cost pushes retail above BDT 700.",
     approvalStatus: "On Hold",
     sourcingStatus: "Not Started",
     scores: {
@@ -233,6 +236,94 @@ const SAMPLE_PRODUCTS = [
       demand: 3,
       qualityRisk: 2
     }
+  },
+  {
+    sku: "",
+    dateAdded: "2026-06-22",
+    productName: "Premium Embroidered Tote Bag",
+    productImageLink: "",
+    category: "Bag",
+    sourcePlatform: "AliExpress",
+    sourceUrl: "https://www.aliexpress.com/item/sample-reject-price",
+    supplierName: "Premium Bags Co",
+    unitCost: 650,
+    sourceCurrency: "BDT",
+    shippingCostBdt: 90,
+    miscFeesBdt: 25,
+    supplierRating: 4.6,
+    productRating: 4.4,
+    soldCount: 320,
+    reviewCount: 72,
+    realReviewPhotos: "Yes",
+    moq: 8,
+    recommendedTestQuantity: 8,
+    finalApprovedQuantity: 8,
+    weightSize: "280g",
+    fragilityLevel: "Low",
+    packagingDifficulty: "Medium",
+    courierRisk: "Medium",
+    duplicateFound: "No",
+    competitorPrice: 1400,
+    marketSaturationLevel: "Medium",
+    reason: "Reject by price because suggested selling price exceeds hard limit.",
+    approvalStatus: "Rejected",
+    sourcingStatus: "Not Started",
+    scores: {
+      feminine: 5,
+      trendy: 4,
+      aaynaFit: 5,
+      easyToStyle: 4,
+      lightweight: 3,
+      reelsPhotos: 5,
+      giftability: 4,
+      priceFit: 1,
+      demand: 4,
+      qualityRisk: 4
+    }
+  },
+  {
+    sku: "",
+    dateAdded: "2026-06-23",
+    productName: "Plastic Clip Mixed Pack",
+    productImageLink: "",
+    category: "Hair Accessory",
+    sourcePlatform: "1688",
+    sourceUrl: "https://www.1688.com/item/sample-reject-quality",
+    supplierName: "Generic Factory 8",
+    unitCost: 22,
+    sourceCurrency: "BDT",
+    shippingCostBdt: 8,
+    miscFeesBdt: 10,
+    supplierRating: 3.6,
+    productRating: 3.2,
+    soldCount: 80,
+    reviewCount: 10,
+    realReviewPhotos: "No",
+    moq: 100,
+    recommendedTestQuantity: 0,
+    finalApprovedQuantity: 0,
+    weightSize: "10g",
+    fragilityLevel: "Low",
+    packagingDifficulty: "Easy",
+    courierRisk: "Low",
+    duplicateFound: "Yes",
+    competitorPrice: 180,
+    marketSaturationLevel: "High",
+    reason: "Reject by quality/aesthetic guardrail and weak score.",
+    approvalStatus: "Rejected",
+    sourcingStatus: "Not Started",
+    scores: {
+      feminine: 2,
+      trendy: 2,
+      aaynaFit: 1,
+      easyToStyle: 3,
+      lightweight: 5,
+      reelsPhotos: 2,
+      giftability: 2,
+      priceFit: 4,
+      demand: 2,
+      qualityRisk: 1
+    }
   }
 ];
 
@@ -244,9 +335,14 @@ const settingsForm = document.querySelector("#settingsForm");
 const scoreInputs = document.querySelector("#scoreInputs");
 const calculatorPreview = document.querySelector("#calculatorPreview");
 const emptyStateTemplate = document.querySelector("#emptyStateTemplate");
+const formMessage = document.querySelector("#formMessage");
 
 function loadProducts() {
-  return JSON.parse(localStorage.getItem("aaynaProducts") || "[]").map(normalizeProduct);
+  try {
+    return JSON.parse(localStorage.getItem("aaynaProducts") || "[]").map(normalizeProduct);
+  } catch {
+    return [];
+  }
 }
 
 function saveProducts() {
@@ -254,10 +350,14 @@ function saveProducts() {
 }
 
 function loadSettings() {
-  return {
-    ...DEFAULT_SETTINGS,
-    ...JSON.parse(localStorage.getItem("aaynaSettings") || "{}")
-  };
+  try {
+    return {
+      ...DEFAULT_SETTINGS,
+      ...JSON.parse(localStorage.getItem("aaynaSettings") || "{}")
+    };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
 }
 
 function saveSettings() {
@@ -350,11 +450,19 @@ function clampScore(value) {
 }
 
 function money(value) {
-  return `BDT ${Math.round(Number(value || 0)).toLocaleString("en-BD")}`;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "৳0";
+  const sign = numeric < 0 ? "-" : "";
+  return `${sign}৳${Math.round(Math.abs(numeric)).toLocaleString("en-US")}`;
 }
 
 function percent(value) {
-  return `${(Number(value || 0) * 100).toFixed(1)}%`;
+  if (value === "" || value === null || value === undefined || !Number.isFinite(Number(value))) return "-";
+  return `${(Number(value) * 100).toFixed(1)}%`;
+}
+
+function moneyOrDash(value) {
+  return value === "" || value === null || value === undefined ? "-" : money(value);
 }
 
 function roundToWorkbookPrice(value) {
@@ -370,6 +478,26 @@ function generateSku(product, index = products.length) {
 }
 
 function calculateCosts(product) {
+  const hasCostData = product.unitCost !== "" && product.unitCost !== null && product.unitCost !== undefined;
+  if (!hasCostData) {
+    return {
+      hasCostData: false,
+      unitCostBdt: "",
+      customsRate: settings.defaultCustomsPct / 100,
+      miscFee: settings.defaultMiscFee,
+      estimatedLandedCost: "",
+      suggestedSellingPrice: "",
+      expectedProfit: "",
+      profitMargin: "",
+      totalPurchaseCost: "",
+      actualLandedCost: "",
+      actualProfit: "",
+      actualProfitMargin: "",
+      finalStockAccepted: product.quantityReceived !== "" && product.defectCount !== ""
+        ? Math.max(0, toNumber(product.quantityReceived) - toNumber(product.defectCount))
+        : ""
+    };
+  }
   const unitCostBdt = toNumber(product.unitCost) * currencyRate(product.sourceCurrency);
   const customsRate = product.customsDutyPct === "" || product.customsDutyPct === undefined
     ? settings.defaultCustomsPct / 100
@@ -398,6 +526,7 @@ function calculateCosts(product) {
     : "";
 
   return {
+    hasCostData: true,
     unitCostBdt,
     customsRate,
     miscFee,
@@ -426,12 +555,13 @@ function calculateDecision(product) {
   const aesthetic = clampScore(product.scores?.aaynaFit);
   const qualityRisk = clampScore(product.scores?.qualityRisk);
 
+  if (!costs.hasCostData) return "Reject";
   if (costs.suggestedSellingPrice > settings.hardRejectPrice) return "Reject";
   if (costs.suggestedSellingPrice > settings.targetMaxPrice) return "Price Review";
-  if (score >= 80) {
+  if (score >= BUY_THRESHOLD) {
     return qualityRisk <= 2 || aesthetic <= 2 ? "Maybe" : "Buy";
   }
-  if (score >= 65) return "Maybe";
+  if (score >= MAYBE_THRESHOLD) return "Maybe";
   return "Reject";
 }
 
@@ -448,16 +578,16 @@ function isHighRisk(product) {
 
 function autoFlag(product) {
   const costs = calculateCosts(product);
-  if (costs.suggestedSellingPrice > settings.targetMaxPrice) return "Price too high";
-  if (clampScore(product.scores?.qualityRisk) <= 2) return "Quality risk";
-  if (clampScore(product.scores?.aaynaFit) <= 2) return "Aesthetic mismatch";
-  if (product.fragilityLevel === "High") return "Too fragile";
-  if (costs.profitMargin < settings.lowProfitThreshold / 100) return "Low profit";
+  const score = calculateScore(product);
+  if (!costs.hasCostData) return "Incomplete cost data";
+  if (costs.suggestedSellingPrice > settings.hardRejectPrice) return `Price above hard reject limit (${money(settings.hardRejectPrice)})`;
+  if (costs.suggestedSellingPrice > settings.targetMaxPrice) return `Price above ${money(settings.targetMaxPrice)}`;
+  if (clampScore(product.scores?.qualityRisk) <= 2) return "Quality/risk too low";
+  if (clampScore(product.scores?.aaynaFit) <= 2) return "Aesthetic fit too low";
+  if (score < MAYBE_THRESHOLD) return "Score below Maybe threshold";
+  if (costs.profitMargin !== "" && costs.profitMargin < settings.lowProfitThreshold / 100) return "Low profit margin";
   if (toNumber(product.moq) > settings.moqWarningThreshold) return "MOQ too high";
-  const decision = calculateDecision(product);
-  if (decision === "Maybe" || decision === "Price Review") return "Needs partner review";
-  if (decision === "Buy") return "Good candidate";
-  return "";
+  return "Good candidate";
 }
 
 function productWithComputed(product, index = 0) {
@@ -518,6 +648,28 @@ function setFormProduct(product = {}) {
   renderCalculatorPreview();
 }
 
+function showMessage(type, text) {
+  formMessage.textContent = text;
+  formMessage.className = `message ${type}`;
+}
+
+function hideMessage() {
+  formMessage.textContent = "";
+  formMessage.className = "message hidden";
+}
+
+function validateProduct(product) {
+  const errors = [];
+  if (!product.productName) errors.push("Product name is required.");
+  if (!product.category) errors.push("Category is required.");
+  if (!product.sourcePlatform) errors.push("Source platform is required.");
+  if (product.unitCost === "" || product.unitCost === null || product.unitCost === undefined) {
+    errors.push("Unit cost is required.");
+  }
+  if (Number(product.unitCost) < 0) errors.push("Unit cost cannot be negative.");
+  return errors;
+}
+
 function resetForm() {
   form.reset();
   const blank = { ...FIELD_DEFAULTS, scores: Object.fromEntries(SCORE_FIELDS.map(([key]) => [key, 3])) };
@@ -530,6 +682,23 @@ function resetForm() {
 function renderCalculatorPreview() {
   const product = getFormProduct();
   const computed = productWithComputed(product);
+  if (!computed.costs.hasCostData) {
+    calculatorPreview.innerHTML = `
+      <div class="calc-item calc-wide">
+        <span>Cost & pricing</span>
+        <strong>Incomplete cost data</strong>
+      </div>
+      <div class="calc-item">
+        <span>Score</span>
+        <strong>${computed.score}/100</strong>
+      </div>
+      <div class="calc-item">
+        <span>Auto flag</span>
+        <strong>${computed.autoFlag}</strong>
+      </div>
+    `;
+    return;
+  }
   const items = [
     ["Unit cost BDT", money(computed.costs.unitCostBdt)],
     ["Landed cost", money(computed.costs.estimatedLandedCost)],
@@ -562,7 +731,7 @@ function renderSettings() {
 function renderStats() {
   const computed = products.map(productWithComputed);
   const approved = computed.filter((product) => product.approvalStatus === "Approved");
-  const approvedCost = approved.reduce((sum, product) => sum + product.costs.totalPurchaseCost, 0);
+  const approvedCost = approved.reduce((sum, product) => sum + toNumber(product.costs.totalPurchaseCost), 0);
   const remaining = settings.monthlyBudget - approvedCost;
   const used = settings.monthlyBudget > 0 ? approvedCost / settings.monthlyBudget : 0;
   const stats = [
@@ -596,18 +765,22 @@ function needsPartnerReview(product) {
 function renderCompactList(id, items) {
   const container = document.querySelector(`#${id}`);
   if (!items.length) {
-    container.innerHTML = emptyStateTemplate.innerHTML;
+    container.innerHTML = emptyState("No products yet. Add your first product candidate or load demo samples.");
     return;
   }
   container.innerHTML = items.map((product) => `
     <div class="compact-item">
       <div>
         <strong>${escapeHtml(product.productName)}</strong>
-        <div class="meta">${escapeHtml(product.sku)} · ${escapeHtml(product.category)} · ${money(product.costs.suggestedSellingPrice)}</div>
+        <div class="meta">${escapeHtml(product.sku)} - ${escapeHtml(product.category)} - ${moneyOrDash(product.costs.suggestedSellingPrice)}</div>
       </div>
       <span class="pill ${normalizeDecision(product.decision)}">${product.score}/100</span>
     </div>
   `).join("");
+}
+
+function emptyState(message) {
+  return `<div class="empty-state">${escapeHtml(message)}</div>`;
 }
 
 function renderDashboardLists() {
@@ -658,7 +831,9 @@ function renderProductList() {
   const filtered = getFilteredProducts();
 
   if (!filtered.length) {
-    container.innerHTML = emptyStateTemplate.innerHTML;
+    container.innerHTML = emptyState(products.length
+      ? "No products match this filter."
+      : "No products yet. Add your first product candidate or load demo samples.");
     return;
   }
 
@@ -671,7 +846,7 @@ function renderProductList() {
         <div class="product-head">
           <div>
             <h3>${escapeHtml(product.productName)}</h3>
-            <div class="meta">${escapeHtml(product.sku)} · ${escapeHtml(product.sourcePlatform)} · ${escapeHtml(product.category)}</div>
+            <div class="meta">${escapeHtml(product.sku)} - ${escapeHtml(product.sourcePlatform)} - ${escapeHtml(product.category)}</div>
           </div>
           <div class="status-line">
             <span class="pill ${normalizeDecision(product.decision)}">${product.decision}</span>
@@ -681,10 +856,12 @@ function renderProductList() {
           </div>
         </div>
         <div class="product-meta">
-          <span class="pill">${money(product.costs.suggestedSellingPrice)} selling</span>
-          <span class="pill">${money(product.costs.estimatedLandedCost)} landed</span>
-          <span class="pill">${percent(product.costs.profitMargin)} margin</span>
-          <span class="pill">${money(product.costs.totalPurchaseCost)} purchase</span>
+          ${product.costs.hasCostData
+            ? `<span class="pill">${money(product.costs.suggestedSellingPrice)} selling</span>
+              <span class="pill">${money(product.costs.estimatedLandedCost)} landed</span>
+              <span class="pill">${percent(product.costs.profitMargin)} margin</span>
+              <span class="pill">${money(product.costs.totalPurchaseCost)} purchase</span>`
+            : '<span class="pill reject">Incomplete cost data</span>'}
           <span class="pill">MOQ ${toNumber(product.moq)}</span>
           ${product.autoFlag ? `<span class="pill ${product.highRisk ? "reject" : "maybe"}">${escapeHtml(product.autoFlag)}</span>` : ""}
         </div>
@@ -807,16 +984,35 @@ form.addEventListener("input", renderCalculatorPreview);
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  const product = getFormProduct();
-  const existingIndex = products.findIndex((item) => item.id === product.id);
-  if (existingIndex >= 0) {
-    products[existingIndex] = product;
-  } else {
-    products.unshift(product);
+  hideMessage();
+  try {
+    const product = getFormProduct();
+    const validationErrors = validateProduct(product);
+    if (validationErrors.length) {
+      showMessage("error", validationErrors.join(" "));
+      return;
+    }
+
+    const duplicateSource = product.sourceUrl
+      && products.some((item) => item.id !== product.id && item.sourceUrl && item.sourceUrl.trim().toLowerCase() === product.sourceUrl.trim().toLowerCase());
+    if (duplicateSource && !confirm("This source URL already exists. Save this candidate anyway?")) {
+      showMessage("error", "Save cancelled because the source URL is already in the product list.");
+      return;
+    }
+
+    const existingIndex = products.findIndex((item) => item.id === product.id);
+    if (existingIndex >= 0) {
+      products[existingIndex] = product;
+    } else {
+      products.unshift(product);
+    }
+    saveProducts();
+    resetForm();
+    renderAll();
+    showMessage("success", `"${product.productName}" was saved successfully.`);
+  } catch (error) {
+    showMessage("error", `Save failed: ${error.message || "Unknown error"}`);
   }
-  saveProducts();
-  resetForm();
-  renderAll();
 });
 
 settingsForm.addEventListener("submit", (event) => {
@@ -873,6 +1069,7 @@ document.querySelector("#resetFormBtn").addEventListener("click", resetForm);
 document.querySelector("#cancelEditBtn").addEventListener("click", resetForm);
 document.querySelector("#exportCsvBtn").addEventListener("click", exportApprovedCsv);
 document.querySelector("#seedDataBtn").addEventListener("click", () => {
+  hideMessage();
   const stampedSamples = SAMPLE_PRODUCTS.map((product, index) => normalizeProduct({
     ...product,
     id: crypto.randomUUID(),
@@ -882,6 +1079,7 @@ document.querySelector("#seedDataBtn").addEventListener("click", () => {
   products = [...stampedSamples, ...products];
   saveProducts();
   renderAll();
+  showMessage("success", "Loaded 5 demo products covering Buy, Maybe, Price Review, Reject by price, and Reject by quality/aesthetic.");
 });
 
 initializeDropdowns();
