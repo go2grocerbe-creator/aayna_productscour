@@ -19,6 +19,9 @@ INTEL = "C9A66B"
 QTY_COST = "AD8350"
 RISK_OPS = "A4626C"
 CHECKLIST = "6E5C54"
+ACTUAL = "B07B5E"
+QC = "6F8F76"
+AI_TRACE = "9C8AA5"
 GREEN = "C6EFCE"
 GREEN_FONT = "1E7B34"
 YELLOW = "FFF3C4"
@@ -73,6 +76,7 @@ settings_rows = [
     ("Maybe threshold (score >=)", 50, "Below this = Reject"),
     ("Low profit margin warning threshold", 0.30, "Auto Flag shows 'Low profit' below this margin, e.g. 0.30 = 30%"),
     ("MOQ warning threshold (units)", 50, "Auto Flag shows 'MOQ too high' above this quantity"),
+    ("Monthly Inventory Budget (BDT)", 30000, "Total budget for approved purchases this month — tracked on the Dashboard"),
 ]
 for r, row in enumerate(settings_rows, start=4):
     for c, val in enumerate(row, start=1):
@@ -113,6 +117,7 @@ named_map = {
     "MAYBE_THRESHOLD": 23,
     "LOW_PROFIT_PCT": 24,
     "MOQ_WARNING": 25,
+    "MONTHLY_BUDGET": 26,
 }
 for name, row in named_map.items():
     ref = f"Settings!$B${row}"
@@ -127,7 +132,7 @@ ws_lists.sheet_properties.tabColor = ANTIQUE_GOLD
 lists = {
     "A": ("Source Platform", ["SkyBuyBD", "AliExpress", "Yiwugo", "1688", "Local Wholesale", "Other"]),
     "B": ("Category", ["Earrings", "Necklace", "Bracelet", "Ring", "Hair Accessory", "Bag", "Belt",
-                        "Sunglasses", "Watch", "Scarf", "Hijab Accessory", "Other"]),
+                        "Sunglasses", "Watch", "Scarf", "Hijab Accessory", "Gift Set", "Other"]),
     "C": ("Source Currency", ["BDT", "USD", "RMB"]),
     "D": ("Decision", ["Buy", "Maybe", "Price Review", "Reject"]),
     "E": ("Approval Status", ["Pending", "Approved", "Rejected", "On Hold"]),
@@ -137,6 +142,9 @@ lists = {
     "I": ("Packaging Difficulty", ["Easy", "Medium", "Hard"]),
     "J": ("Sourcing Status", ["Not Started", "Sourcing", "Sample Ordered", "Sample Received",
                                "Approved - Not Ordered", "Ordered", "In Transit", "Arrived", "Live on Website"]),
+    "K": ("QC Status", ["Not Arrived", "QC Pending", "QC Passed", "Minor Defect", "QC Failed",
+                         "Discount Sell", "Return/Reject"]),
+    "L": ("AI Tool", ["Claude", "ChatGPT", "Gemini", "Other"]),
 }
 for col, (title, values) in lists.items():
     ws_lists[f"{col}1"] = title
@@ -148,7 +156,7 @@ for col, (title, values) in lists.items():
 
 # Named ranges for each list (fixed length covers max list size)
 wb.defined_names["LIST_PLATFORM"] = DefinedName("LIST_PLATFORM", attr_text="'Dropdown Lists'!$A$2:$A$7")
-wb.defined_names["LIST_CATEGORY"] = DefinedName("LIST_CATEGORY", attr_text="'Dropdown Lists'!$B$2:$B$13")
+wb.defined_names["LIST_CATEGORY"] = DefinedName("LIST_CATEGORY", attr_text="'Dropdown Lists'!$B$2:$B$14")
 wb.defined_names["LIST_CURRENCY"] = DefinedName("LIST_CURRENCY", attr_text="'Dropdown Lists'!$C$2:$C$4")
 wb.defined_names["LIST_DECISION"] = DefinedName("LIST_DECISION", attr_text="'Dropdown Lists'!$D$2:$D$5")
 wb.defined_names["LIST_APPROVAL"] = DefinedName("LIST_APPROVAL", attr_text="'Dropdown Lists'!$E$2:$E$5")
@@ -157,6 +165,39 @@ wb.defined_names["LIST_YESNO"] = DefinedName("LIST_YESNO", attr_text="'Dropdown 
 wb.defined_names["LIST_LEVEL"] = DefinedName("LIST_LEVEL", attr_text="'Dropdown Lists'!$H$2:$H$4")
 wb.defined_names["LIST_PACKAGING"] = DefinedName("LIST_PACKAGING", attr_text="'Dropdown Lists'!$I$2:$I$4")
 wb.defined_names["LIST_SOURCING_STATUS"] = DefinedName("LIST_SOURCING_STATUS", attr_text="'Dropdown Lists'!$J$2:$J$10")
+wb.defined_names["LIST_QC_STATUS"] = DefinedName("LIST_QC_STATUS", attr_text="'Dropdown Lists'!$K$2:$K$8")
+wb.defined_names["LIST_AI_TOOL"] = DefinedName("LIST_AI_TOOL", attr_text="'Dropdown Lists'!$L$2:$L$5")
+
+# Fixed category -> SKU prefix lookup table (explicit, not derived from the
+# category name) so SKUs stay stable even if a category is renamed slightly.
+category_prefixes = [
+    ("Earrings", "EAR"),
+    ("Necklace", "NEC"),
+    ("Bracelet", "BRC"),
+    ("Ring", "RNG"),
+    ("Hair Accessory", "HAR"),
+    ("Bag", "BAG"),
+    ("Belt", "BLT"),
+    ("Sunglasses", "SUN"),
+    ("Watch", "WCH"),
+    ("Scarf", "SCF"),
+    ("Hijab Accessory", "HIJ"),
+    ("Gift Set", "GFT"),
+    ("Other", "OTH"),
+]
+ws_lists["M1"] = "Category"
+ws_lists["N1"] = "SKU Prefix"
+ws_lists["M1"].fill = header_fill
+ws_lists["N1"].fill = header_fill
+ws_lists["M1"].font = header_font
+ws_lists["N1"].font = header_font
+for i, (cat, prefix) in enumerate(category_prefixes, start=2):
+    ws_lists[f"M{i}"] = cat
+    ws_lists[f"N{i}"] = prefix
+ws_lists.column_dimensions["M"].width = 18
+ws_lists.column_dimensions["N"].width = 12
+wb.defined_names["CATEGORY_PREFIX_TABLE"] = DefinedName(
+    "CATEGORY_PREFIX_TABLE", attr_text=f"'Dropdown Lists'!$M$2:$N${1 + len(category_prefixes)}")
 
 # =====================================================================
 # TAB: PRODUCT TRACKER (the main sheet)
@@ -220,7 +261,7 @@ helper_columns = [
     "Rank Key: Needs Review (hidden)",
 ]
 
-n_data_rows = 40
+n_data_rows = 498  # rows 3..500
 header_row = 2
 
 ws["A1"] = "AAYNA Product Scout Lite — Product Tracker"
@@ -292,7 +333,41 @@ for offset, (name, width, color) in enumerate(new_columns):
     cell.alignment = Alignment(wrap_text=True, vertical="center", horizontal="center")
     ws.column_dimensions[col_letter].width = width
 
-visible_col_indices = list(range(1, len(columns) + 1)) + list(range(new_start_idx, new_start_idx + len(new_columns)))
+# Actual cost/QC/AI-trace columns (BM..CB) -- appended after the sourcing &
+# operations block for the same reason: nothing above has to move.
+new_columns2 = [
+    ("Actual Product Cost (BDT)", 15, ACTUAL),
+    ("Actual Shipping Cost (BDT)", 15, ACTUAL),
+    ("Actual Landed Cost (BDT)", 14, ACTUAL),
+    ("Actual Selling Price (BDT)", 14, ACTUAL),
+    ("Actual Profit (BDT)", 13, ACTUAL),
+    ("Actual Profit Margin", 13, ACTUAL),
+
+    ("Arrival Date", 13, QC),
+    ("Quantity Received", 13, QC),
+    ("Defect Count", 12, QC),
+    ("QC Status", 13, QC),
+    ("QC Notes", 26, QC),
+    ("Final Stock Accepted", 14, QC),
+
+    ("AI Tool Used", 13, AI_TRACE),
+    ("AI Score Date", 13, AI_TRACE),
+    ("Scored By", 13, AI_TRACE),
+    ("Manual Score Adjusted?", 15, AI_TRACE),
+]
+new2_start_idx = new_start_idx + len(new_columns)  # BM
+for offset, (name, width, color) in enumerate(new_columns2):
+    idx = new2_start_idx + offset
+    col_letter = get_column_letter(idx)
+    cell = ws.cell(row=header_row, column=idx, value=name)
+    cell.fill = PatternFill("solid", fgColor=color)
+    cell.font = Font(bold=True, color=WHITE, size=10)
+    cell.alignment = Alignment(wrap_text=True, vertical="center", horizontal="center")
+    ws.column_dimensions[col_letter].width = width
+
+visible_col_indices = (list(range(1, len(columns) + 1))
+                        + list(range(new_start_idx, new_start_idx + len(new_columns)))
+                        + list(range(new2_start_idx, new2_start_idx + len(new_columns2))))
 
 ws.row_dimensions[header_row].height = 42
 ws.freeze_panes = "C3"
@@ -304,8 +379,14 @@ first_data_row = header_row + 1
 last_data_row = header_row + n_data_rows
 
 for r in range(first_data_row, last_data_row + 1):
-    # SKU (A): auto code based on category + row number
-    ws[f"A{r}"] = f'=IF(C{r}="","","AYN-"&UPPER(LEFT(E{r},3))&"-"&TEXT(ROW()-{header_row},"000"))'
+    # SKU (A): AYN-<fixed category prefix>-<4-digit row number>, e.g. AYN-EAR-0001.
+    # Prefix comes from the CATEGORY_PREFIX_TABLE lookup, not from the category
+    # text itself, so it stays correct even for categories that share a first
+    # 3 letters (e.g. Belt vs Bracelet).
+    ws[f"A{r}"] = (
+        f'=IF(C{r}="","","AYN-"&IFERROR(VLOOKUP(E{r},CATEGORY_PREFIX_TABLE,2,FALSE),"OTH")'
+        f'&"-"&TEXT(ROW()-{header_row},"0000"))'
+    )
     # Unit Cost (BDT) (K)
     ws[f"K{r}"] = f'=IF(I{r}="","",IF(J{r}="BDT",I{r},IF(J{r}="USD",I{r}*USD_BDT,IF(J{r}="RMB",I{r}*RMB_BDT,""))))'
     # Estimated Landed Cost (O) = unit cost bdt + shipping + customs%*unit cost bdt + misc fees
@@ -370,6 +451,18 @@ for r in range(first_data_row, last_data_row + 1):
         f'=IF(C{r}="","",IF(AND(BG{r}="Yes",BH{r}="Yes",BI{r}="Yes",BJ{r}="Yes",BK{r}="Yes"),"Yes","No"))'
     )
 
+    # ---- Actual cost & profit (filled in once the order has actually shipped) ----
+    # Actual Landed Cost (BO) = Actual Product Cost + Actual Shipping Cost
+    ws[f"BO{r}"] = f'=IF(OR(BM{r}="",BN{r}=""),"",BM{r}+BN{r})'
+    # Actual Profit (BQ) = Actual Selling Price - Actual Landed Cost
+    ws[f"BQ{r}"] = f'=IF(OR(BP{r}="",BO{r}=""),"",BP{r}-BO{r})'
+    # Actual Profit Margin (BR)
+    ws[f"BR{r}"] = f'=IF(OR(BP{r}="",BP{r}=0,BQ{r}=""),"",BQ{r}/BP{r})'
+
+    # ---- Quality check after arrival ----
+    # Final Stock Accepted (BX) = Quantity Received - Defect Count
+    ws[f"BX{r}"] = f'=IF(OR(BT{r}="",BU{r}=""),"",BT{r}-BU{r})'
+
     for c in visible_col_indices:
         ws.cell(row=r, column=c).border = border
         ws.cell(row=r, column=c).alignment = Alignment(vertical="center")
@@ -389,6 +482,13 @@ for r in range(first_data_row, last_data_row + 1):
         ws[f"{col}{r}"].number_format = "#,##0"
     for col in ["AW", "BC"]:
         ws[f"{col}{r}"].number_format = '#,##0 "BDT"'
+    for col in ["BM", "BN", "BO", "BP", "BQ"]:
+        ws[f"{col}{r}"].number_format = '#,##0 "BDT"'
+    ws[f"BR{r}"].number_format = "0%"
+    ws[f"BS{r}"].number_format = "yyyy-mm-dd"
+    for col in ["BT", "BU", "BX"]:
+        ws[f"{col}{r}"].number_format = "#,##0"
+    ws[f"BZ{r}"].number_format = "yyyy-mm-dd"
 
 # Light banding fill for readability
 band_fill = PatternFill("solid", fgColor=CREAM)
@@ -423,6 +523,9 @@ for col in ["AY", "BA", "BD"]:
     add_dv("LIST_LEVEL", col, "Low, Medium, or High")
 add_dv("LIST_PACKAGING", "AZ", "Easy, Medium, or Hard")
 add_dv("LIST_SOURCING_STATUS", "BF", "Where this product is in the sourcing pipeline")
+add_dv("LIST_QC_STATUS", "BV", "Quality check result after the product arrives")
+add_dv("LIST_AI_TOOL", "BY", "Which AI tool gave the first-opinion scores")
+add_dv("LIST_YESNO", "CB", "Did a human change any AI-suggested score?")
 
 # ---------------- Conditional formatting on Decision (AD) ----------------
 rng = f"AD{first_data_row}:AD{last_data_row}"
@@ -497,6 +600,19 @@ for col in ["AY", "BA", "BD"]:
     ws.conditional_formatting.add(risk_rng, CellIsRule(operator="equal", formula=['"Low"'],
                          fill=PatternFill("solid", fgColor=GREEN)))
 
+# QC Status (BV) colors
+qc_rng = f"BV{first_data_row}:BV{last_data_row}"
+ws.conditional_formatting.add(qc_rng, CellIsRule(operator="equal", formula=['"QC Passed"'],
+                     fill=PatternFill("solid", fgColor=GREEN), font=Font(color=GREEN_FONT, bold=True)))
+ws.conditional_formatting.add(qc_rng, CellIsRule(operator="equal", formula=['"QC Pending"'],
+                     fill=PatternFill("solid", fgColor=YELLOW), font=Font(color=YELLOW_FONT, bold=True)))
+for val in ['"Minor Defect"', '"Discount Sell"']:
+    ws.conditional_formatting.add(qc_rng, CellIsRule(operator="equal", formula=[val],
+                         fill=PatternFill("solid", fgColor=ORANGE), font=Font(color=ORANGE_FONT, bold=True)))
+for val in ['"QC Failed"', '"Return/Reject"']:
+    ws.conditional_formatting.add(qc_rng, CellIsRule(operator="equal", formula=[val],
+                         fill=PatternFill("solid", fgColor=RED), font=Font(color=RED_FONT, bold=True)))
+
 # ---------------- Sample example rows (first 5 data rows) ----------------
 # Each row is built to land on a different branch of the Decision formula so
 # partners can see exactly how the hard rejection rules behave.
@@ -513,6 +629,8 @@ sample_buy = {
     "AX": "15g, 3 x 4 cm", "AY": "Low", "AZ": "Easy", "BA": "Low", "BB": "No", "BC": 650, "BD": "Low",
     "BF": "Approved - Not Ordered",
     "BG": "Yes", "BH": "Yes", "BI": "Yes", "BJ": "Yes", "BK": "Yes",
+    "BV": "Not Arrived",
+    "BY": "Claude", "BZ": "2026-06-20", "CA": "Nadia", "CB": "No",
 }
 sample_maybe_quality_cap = {
     "B": "2026-06-21", "C": "Beaded Choker Necklace", "D": "drive.google.com/sample2",
@@ -526,6 +644,8 @@ sample_maybe_quality_cap = {
     "AT": 30, "AU": 20,
     "AX": "25g, one size", "AY": "Medium", "AZ": "Medium", "BA": "Medium", "BB": "Yes", "BC": 80, "BD": "Medium",
     "BF": "Sample Ordered",
+    "BV": "Not Arrived",
+    "BY": "ChatGPT", "BZ": "2026-06-21", "CA": "Imran", "CB": "Yes",
 }
 sample_reject_low_score = {
     "B": "2026-06-21", "C": "Plain Plastic Hair Clip", "D": "drive.google.com/sample3",
@@ -539,6 +659,8 @@ sample_reject_low_score = {
     "AT": 80,
     "AX": "5g, 6 cm clip", "AY": "Low", "AZ": "Easy", "BA": "Low", "BB": "Yes", "BC": 15, "BD": "High",
     "BF": "Not Started",
+    "BV": "Not Arrived",
+    "BY": "Claude", "BZ": "2026-06-21", "CA": "Nadia", "CB": "No",
 }
 sample_price_review = {
     "B": "2026-06-22", "C": "Embroidered Tote Bag", "D": "drive.google.com/sample4",
@@ -553,6 +675,8 @@ sample_price_review = {
     "AX": "320g, 30 x 35 cm", "AY": "Low", "AZ": "Medium", "BA": "Medium", "BB": "No", "BC": 720, "BD": "Low",
     "BF": "Sourcing",
     "BG": "Yes", "BH": "Yes",
+    "BV": "Not Arrived",
+    "BY": "Gemini", "BZ": "2026-06-22", "CA": "Imran", "CB": "No",
 }
 sample_hard_reject_price = {
     "B": "2026-06-22", "C": "Designer-Inspired Sunglasses", "D": "drive.google.com/sample5",
@@ -565,6 +689,8 @@ sample_hard_reject_price = {
     "AT": 60,
     "AX": "28g, with case", "AY": "High", "AZ": "Hard", "BA": "High", "BB": "Yes", "BC": 450, "BD": "High",
     "BF": "Not Started",
+    "BV": "Not Arrived",
+    "BY": "ChatGPT", "BZ": "2026-06-22", "CA": "Nadia", "CB": "No",
 }
 samples = [sample_buy, sample_maybe_quality_cap, sample_reject_low_score,
            sample_price_review, sample_hard_reject_price]
@@ -684,32 +810,60 @@ for i, (label, formula) in enumerate(zip(labels2, formulas2)):
     ws_dash[f"B{r}"].alignment = Alignment(horizontal="center")
 ws_dash["B13"].number_format = '#,##0 "BDT"'
 
+# ---- Monthly Budget ----
+section_title(21, "Monthly Budget")
+labels3 = [
+    "Approved Purchase Cost",
+    "Remaining Budget",
+    "Budget Used %",
+    "Approved Quantity",
+    "Number of Approved Products",
+]
+formulas3 = [
+    f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AW{pt_first}:AW{pt_last})',
+    "=MONTHLY_BUDGET-B22",
+    '=IF(MONTHLY_BUDGET=0,"",B22/MONTHLY_BUDGET)',
+    f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AV{pt_first}:AV{pt_last})',
+    f'=COUNTIF({PT}!AG{pt_first}:AG{pt_last},"Approved")',
+]
+for i, (label, formula) in enumerate(zip(labels3, formulas3)):
+    r = 22 + i
+    ws_dash[f"A{r}"] = label
+    ws_dash[f"A{r}"].font = label_font
+    ws_dash[f"B{r}"] = formula
+    ws_dash[f"B{r}"].font = Font(bold=True, size=13, color=ESPRESSO)
+    ws_dash[f"B{r}"].alignment = Alignment(horizontal="center")
+ws_dash["B22"].number_format = '#,##0 "BDT"'
+ws_dash["B23"].number_format = '#,##0 "BDT"'
+ws_dash["B24"].number_format = "0%"
+ws_dash["B25"].number_format = "#,##0"
+
 # ---- Top 10 highest scoring products ----
-row = 21
+row = 29
 section_title(row, "Top 10 Highest Scoring Products")
 table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
 add_topn_table(row + 2, "AJ", 10)
 
 # ---- Best products under BDT 700 ----
-row = 33
+row = 41
 section_title(row, "Best Products Under BDT 700")
 table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
 add_topn_table(row + 2, "AK", 5)
 
 # ---- Best products for reels/photos ----
-row = 40
+row = 48
 section_title(row, "Best Products for Reels/Photos")
 table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
 add_topn_table(row + 2, "AL", 5)
 
 # ---- Best giftable products ----
-row = 47
+row = 55
 section_title(row, "Best Giftable Products")
 table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
 add_topn_table(row + 2, "AM", 5)
 
 # ---- Products needing partner review ----
-row = 54
+row = 62
 section_title(row, "Products Needing Partner Review (Maybe / Price Review, not yet decided)")
 table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
 add_topn_table(row + 2, "AN", 15)
@@ -860,16 +1014,41 @@ rows_help = [
         "Ordered, Sample Received, Approved - Not Ordered, Ordered, In Transit, Arrived, or Live on Website. "
         "This is separate from Decision/Approval Status — a product can be Approved but still waiting on an "
         "order, or Ordered while the website checklist is still in progress."),
+    ("How SKUs are generated", "SKU fills in automatically as AYN-<category code>-<number>, e.g. AYN-EAR-0001 "
+        "for the first earrings row. The 3-letter code comes from a fixed lookup table (Earrings=EAR, "
+        "Necklace=NEC, Ring=RNG, Bracelet=BRC, Hair Accessory=HAR, Gift Set=GFT, and one more for every other "
+        "category) on the Dropdown Lists tab, not from the category spelling, so it never changes even if two "
+        "categories start with the same letters."),
+    ("Staying inside the monthly budget", "Set Monthly Inventory Budget on the Settings tab once. The Dashboard's "
+        "Monthly Budget section then tracks Approved Purchase Cost (sum of Total Purchase Cost for every "
+        "Approved product), Remaining Budget (budget minus that cost), Budget Used %, Approved Quantity, and "
+        "Number of Approved Products — so you always know how much buying room is left before approving the "
+        "next product."),
+    ("Actual cost & profit (after ordering)", "SkyBuy/China sourcing costs can shift after shipping, fees, or "
+        "exchange rate changes, so once an order actually ships, fill in Actual Product Cost and Actual Shipping "
+        "Cost (both in BDT) and Actual Selling Price. Actual Landed Cost, Actual Profit, and Actual Profit "
+        "Margin calculate themselves from those three, separately from the original Estimated Landed Cost/"
+        "Suggested Selling Price — so you can see the real numbers without losing the original estimate."),
+    ("Quality check after arrival", "Once a shipment arrives, fill in Arrival Date, Quantity Received, Defect "
+        "Count, and QC Notes, then set QC Status: Not Arrived, QC Pending, QC Passed, Minor Defect, QC Failed, "
+        "Discount Sell, or Return/Reject (color-coded green/yellow/orange/red). Final Stock Accepted calculates "
+        "itself as Quantity Received minus Defect Count, so you know exactly how many good pieces you actually "
+        "have to sell."),
+    ("AI scoring trace", "Since Claude, ChatGPT, and Gemini can score the same product differently, record AI "
+        "Tool Used, AI Score Date, Scored By, and Manual Score Adjusted? (Yes if a partner changed any AI-given "
+        "score by hand) for every product you score with AI help. Over time this lets you compare which AI tool "
+        "tends to line up best with the decisions the team actually makes."),
     ("Adjusting the formulas", "Don't like the default markup, exchange rate, price ceilings, scoring weights, "
-        "low profit margin warning, or MOQ warning threshold? Change them ONCE in the Settings tab — every row "
-        "updates automatically. No need to touch the Product Tracker formulas."),
+        "low profit margin warning, MOQ warning threshold, or monthly budget? Change them ONCE in the Settings "
+        "tab — every row updates automatically. No need to touch the Product Tracker formulas."),
     ("The Dashboard tab", "A live, read-only overview: how many products are Buy/Maybe/Price Review/Reject; "
         "total estimated purchase cost for approved products, products ready for website upload, high-risk "
         "products, products with high reel/photo potential, products approved but not ordered yet, and products "
-        "ordered but not arrived yet; the Top 10 highest scoring products, the best products under BDT 700, the "
-        "best products for reels/photos, the best giftable products, and everything still waiting on partner "
-        "review. Nothing on this tab needs to be filled in by hand — it reads straight from the Product Tracker "
-        "tab."),
+        "ordered but not arrived yet; Monthly Budget tracking (Approved Purchase Cost, Remaining Budget, Budget "
+        "Used %, Approved Quantity, Number of Approved Products); the Top 10 highest scoring products, the best "
+        "products under BDT 700, the best products for reels/photos, the best giftable products, and everything "
+        "still waiting on partner review. Nothing on this tab needs to be filled in by hand — it reads straight "
+        "from the Product Tracker tab."),
     ("The Claude Scoring Prompt tab", "A ready-to-copy prompt for getting an AI first opinion on a product's 10 "
         "scores, a recommended decision, and a content/reel idea, formatted so the reply is easy to paste back "
         "into the right columns."),
