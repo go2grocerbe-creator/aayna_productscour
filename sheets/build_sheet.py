@@ -2,9 +2,12 @@ import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.formatting.rule import CellIsRule, FormulaRule
+from openpyxl.formatting.rule import CellIsRule, FormulaRule, DataBarRule
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart.marker import DataPoint
+from openpyxl.chart.shapes import GraphicalProperties
 
 # ---------- AAYNA brand colors ----------
 DUSTY_ROSE = "C98B95"
@@ -703,6 +706,19 @@ for sample, row in zip(samples, range(first_data_row, first_data_row + len(sampl
 # =====================================================================
 # TAB: DASHBOARD
 # =====================================================================
+# Visual-only redesign: this block uses its own AAYNA brand palette (DASH_*)
+# instead of the shared color constants above, so the Product Tracker,
+# Settings, Dropdown Lists and Claude Scoring Prompt tabs are unaffected.
+DASH_ROSE = "9A4F5F"
+DASH_CREAM = "FFF8F2"
+DASH_MIST = "F7E7E9"
+DASH_GOLD = "C6A15B"
+DASH_ESPRESSO = "2F2623"
+DASH_TAUPE = "7B6A63"
+DASH_BORDER = "EADDD4"
+DASH_WHITE = "FFFFFF"
+MONEY_FMT = '৳#,##0'
+
 ws_dash = wb.create_sheet("Dashboard")
 ws_dash.sheet_properties.tabColor = SAGE
 ws_dash.sheet_view.showGridLines = False
@@ -710,231 +726,295 @@ ws_dash.sheet_view.showGridLines = False
 PT = "'Product Tracker'"
 pt_first, pt_last = first_data_row, last_data_row
 
-for col, width in zip("ABCDEF", [6, 30, 12, 12, 14, 16]):
+for col, width in zip("ABCDEFGHIJKL", [6, 11, 11, 11, 11, 9, 9, 8, 9, 9, 9, 9]):
     ws_dash.column_dimensions[col].width = width
 
-gold_thin = Side(style="thin", color=ANTIQUE_GOLD)
-card_border = Border(left=gold_thin, right=gold_thin, top=gold_thin, bottom=gold_thin)
-header_bottom_border = Border(bottom=Side(style="medium", color=ANTIQUE_GOLD))
+beige_thin = Side(style="thin", color=DASH_BORDER)
+header_bottom_border = Border(bottom=Side(style="medium", color=DASH_GOLD))
+row_border = Border(left=beige_thin, right=beige_thin, top=beige_thin, bottom=beige_thin)
 
-ws_dash.row_dimensions[1].height = 30
-ws_dash.row_dimensions[2].height = 18
-for c in "ABCDEF":
-    ws_dash[f"{c}1"].fill = PatternFill("solid", fgColor=DUSTY_ROSE)
-    ws_dash[f"{c}2"].fill = PatternFill("solid", fgColor=CREAM)
-ws_dash["A1"] = "AAYNA Product Scout Lite — Dashboard"
-ws_dash["A1"].font = Font(bold=True, size=16, color=WHITE)
-ws_dash["A1"].alignment = Alignment(vertical="center", indent=1)
-ws_dash.merge_cells("A1:F1")
-ws_dash["A2"] = "Live view of the Product Tracker tab. Nothing here is editable — everything updates automatically."
-ws_dash["A2"].font = Font(italic=True, color=MAUVE, size=9)
-ws_dash["A2"].alignment = Alignment(vertical="center", indent=1)
-ws_dash.merge_cells("A2:F2")
+# ---- Hidden Dashboard-local rank-key helpers (row-aligned with Product
+# Tracker rows 3-500) so new ranked sections can filter by Decision/Website
+# Ready/High Risk without adding or editing anything on Product Tracker. ----
+for r in range(pt_first, pt_last + 1):
+    ws_dash[f"R{r}"] = f'=IF({PT}!AD{r}="Buy",IF({PT}!AC{r}="",0,{PT}!AC{r})-ROW()*0.0000001,-9999-ROW()*0.0000001)'
+    ws_dash[f"S{r}"] = f'=IF({PT}!BL{r}="Yes",IF({PT}!AC{r}="",0,{PT}!AC{r})-ROW()*0.0000001,-9999-ROW()*0.0000001)'
+    ws_dash[f"T{r}"] = (
+        f'=IF(OR({PT}!AY{r}="High",{PT}!BA{r}="High",AND({PT}!AB{r}<>"",{PT}!AB{r}<=2)),'
+        f'IF({PT}!AC{r}="",0,{PT}!AC{r})-ROW()*0.0000001,-9999-ROW()*0.0000001)'
+    )
+for col in ("R", "S", "T"):
+    ws_dash.column_dimensions[col].hidden = True
+
+TABLE_COLS = [(1, 1), (2, 5), (6, 7), (8, 8), (9, 10), (11, 12)]  # Rank / Name / SKU / Score / Decision / Price
 
 
-def section_title(row, text, span="A:F"):
+def section_title(row, text):
     cell = ws_dash[f"A{row}"]
-    cell.value = text
-    cell.font = Font(bold=True, size=12, color=WHITE)
-    cell.fill = PatternFill("solid", fgColor=DUSTY_ROSE)
+    cell.value = text.upper()
+    cell.font = Font(bold=True, size=11, color=DASH_WHITE)
     cell.alignment = Alignment(vertical="center", indent=1)
-    first_col, last_col = span.split(":")
-    for c in "ABCDEF":
-        if first_col <= c <= last_col:
-            ws_dash[f"{c}{row}"].fill = PatternFill("solid", fgColor=DUSTY_ROSE)
-    ws_dash.merge_cells(f"{first_col}{row}:{last_col}{row}")
+    for c in range(1, 13):
+        ws_dash.cell(row=row, column=c).fill = PatternFill("solid", fgColor=DASH_ROSE)
+    ws_dash.merge_cells(f"A{row}:L{row}")
     ws_dash.row_dimensions[row].height = 22
 
 
 def table_header(row, labels):
-    for i, label in enumerate(labels):
-        cell = ws_dash.cell(row=row, column=i + 1, value=label)
-        cell.font = Font(bold=True, color=ESPRESSO, size=10)
-        cell.fill = PatternFill("solid", fgColor=DUSTY_ROSE_LIGHT)
+    for (start, end), label in zip(TABLE_COLS, labels):
+        sl, el = get_column_letter(start), get_column_letter(end)
+        cell = ws_dash[f"{sl}{row}"]
+        cell.value = label
+        cell.font = Font(bold=True, color=DASH_ESPRESSO, size=9)
         cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = header_bottom_border
-    ws_dash.row_dimensions[row].height = 20
+        for c in range(start, end + 1):
+            ws_dash.cell(row=row, column=c).fill = PatternFill("solid", fgColor=DASH_MIST)
+            ws_dash.cell(row=row, column=c).border = header_bottom_border
+        if end > start:
+            ws_dash.merge_cells(f"{sl}{row}:{el}{row}")
+    ws_dash.row_dimensions[row].height = 18
 
 
-def kpi_row(r, label, formula, value_font=None, number_format=None, zebra_index=0):
-    """One KPI as a card-style row: label spans A:C, big value spans D:F,
-    framed in a thin gold border with alternating tint for readability."""
-    ws_dash.merge_cells(f"A{r}:C{r}")
-    ws_dash.merge_cells(f"D{r}:F{r}")
-    label_cell = ws_dash[f"A{r}"]
-    label_cell.value = label
-    label_cell.font = Font(color=ESPRESSO, size=11)
-    label_cell.alignment = Alignment(horizontal="left", vertical="center", indent=1, wrap_text=True)
-    value_cell = ws_dash[f"D{r}"]
-    value_cell.value = formula
-    value_cell.font = value_font or Font(bold=True, size=14, color=ESPRESSO)
-    value_cell.alignment = Alignment(horizontal="center", vertical="center")
+def kpi_card(start_row, slot, label, formula, accent_color, number_format=None, value_size=20):
+    """One KPI card: small label row + a 2-row-tall big value, in a 3-column
+    slot (4 slots fit across columns A-L), soft white background, thin warm
+    beige border. Returns the value cell's address for later reuse."""
+    col_start = 1 + slot * 3
+    col_end = col_start + 2
+    sl, el = get_column_letter(col_start), get_column_letter(col_end)
+    label_row, value_row = start_row, start_row + 1
+
+    ws_dash.merge_cells(f"{sl}{label_row}:{el}{label_row}")
+    lc = ws_dash[f"{sl}{label_row}"]
+    lc.value = label.upper()
+    lc.font = Font(bold=True, size=8, color=DASH_TAUPE)
+    lc.alignment = Alignment(horizontal="center", vertical="center")
+
+    ws_dash.merge_cells(f"{sl}{value_row}:{el}{value_row + 1}")
+    vc = ws_dash[f"{sl}{value_row}"]
+    vc.value = formula
+    vc.font = Font(bold=True, size=value_size, color=accent_color)
+    vc.alignment = Alignment(horizontal="center", vertical="center")
     if number_format:
-        value_cell.number_format = number_format
-    fill = PatternFill("solid", fgColor=CREAM if zebra_index % 2 == 0 else WHITE)
-    for c in "ABCDEF":
-        cell = ws_dash[f"{c}{r}"]
-        cell.fill = fill
-        cell.border = card_border
-    ws_dash.row_dimensions[r].height = 24
+        vc.number_format = number_format
+
+    for r in range(label_row, value_row + 2):
+        for c in range(col_start, col_end + 1):
+            cell = ws_dash.cell(row=r, column=c)
+            cell.fill = PatternFill("solid", fgColor=DASH_WHITE)
+            cell.border = Border(
+                left=beige_thin if c == col_start else None,
+                right=beige_thin if c == col_end else None,
+                top=beige_thin if r == label_row else None,
+                bottom=beige_thin if r == value_row + 1 else None,
+            )
+    ws_dash.row_dimensions[label_row].height = 15
+    ws_dash.row_dimensions[value_row].height = 20
+    ws_dash.row_dimensions[value_row + 1].height = 20
+    return f"{sl}{value_row}"
 
 
-def add_topn_table(start_row, key_col, n):
-    """n ranked rows pulled from Product Tracker via LARGE()+MATCH() on a
-    hidden rank-key column. Works in Excel/LibreOffice/Sheets alike (no
-    QUERY/FILTER/SORT dynamic arrays needed)."""
-    key_rng = f"{PT}!${key_col}${pt_first}:${key_col}${pt_last}"
-    band_fill = PatternFill("solid", fgColor=CREAM)
-    for i in range(n):
-        row = start_row + i
-        key = f"LARGE({key_rng},{i + 1})"
-        match = f"MATCH({key},{key_rng},0)"
-        valid = f"{key}>-9000"
-        ws_dash.cell(row=row, column=1, value=i + 1)
-        ws_dash.cell(row=row, column=2,
-                     value=f'=IF({valid},IFERROR(INDEX({PT}!$C${pt_first}:$C${pt_last},{match}),""),"")')
-        ws_dash.cell(row=row, column=3,
-                     value=f'=IF({valid},IFERROR(INDEX({PT}!$A${pt_first}:$A${pt_last},{match}),""),"")')
-        ws_dash.cell(row=row, column=4,
-                     value=f'=IF({valid},IFERROR(INDEX({PT}!$AC${pt_first}:$AC${pt_last},{match}),""),"")')
-        ws_dash.cell(row=row, column=5,
-                     value=f'=IF({valid},IFERROR(INDEX({PT}!$AD${pt_first}:$AD${pt_last},{match}),""),"")')
-        ws_dash.cell(row=row, column=6,
-                     value=f'=IF({valid},IFERROR(INDEX({PT}!$P${pt_first}:$P${pt_last},{match}),""),"")')
-        for c in range(1, 7):
-            cell = ws_dash.cell(row=row, column=c)
-            cell.border = border
-            cell.alignment = Alignment(horizontal="center" if c in (1, 4, 5) else "left", vertical="center")
-            if i % 2 == 1:
-                cell.fill = band_fill
-        ws_dash.cell(row=row, column=4).number_format = "0"
-        ws_dash.cell(row=row, column=6).number_format = '#,##0 "BDT"'
-        ws_dash.row_dimensions[row].height = 18
-    # Decision column (5) color-coded the same way as the Product Tracker
-    dec_rng = f"E{start_row}:E{start_row + n - 1}"
-    ws_dash.conditional_formatting.add(dec_rng, CellIsRule(operator="equal", formula=['"Buy"'],
+def apply_score_badges(rng):
+    ws_dash.conditional_formatting.add(rng, CellIsRule(operator="greaterThanOrEqual", formula=["80"],
                          font=Font(color=GREEN_FONT, bold=True)))
-    ws_dash.conditional_formatting.add(dec_rng, CellIsRule(operator="equal", formula=['"Maybe"'],
-                         font=Font(color=YELLOW_FONT, bold=True)))
-    ws_dash.conditional_formatting.add(dec_rng, CellIsRule(operator="equal", formula=['"Price Review"'],
+    ws_dash.conditional_formatting.add(rng, CellIsRule(operator="between", formula=["65", "79.999"],
                          font=Font(color=ORANGE_FONT, bold=True)))
-    ws_dash.conditional_formatting.add(dec_rng, CellIsRule(operator="equal", formula=['"Reject"'],
+    ws_dash.conditional_formatting.add(rng, CellIsRule(operator="lessThan", formula=["65"],
                          font=Font(color=RED_FONT, bold=True)))
 
 
-# ---- Summary counts ----
-section_title(4, "Summary")
-labels = ["Total products scouted", "Buy", "Maybe", "Price Review", "Reject"]
-formulas = [
-    f'=COUNTA({PT}!C{pt_first}:C{pt_last})',
-    f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Buy")',
-    f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Maybe")',
-    f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Price Review")',
-    f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Reject")',
+def apply_decision_badges(rng):
+    ws_dash.conditional_formatting.add(rng, CellIsRule(operator="equal", formula=['"Buy"'],
+                         fill=PatternFill("solid", fgColor=GREEN), font=Font(color=GREEN_FONT, bold=True)))
+    ws_dash.conditional_formatting.add(rng, CellIsRule(operator="equal", formula=['"Maybe"'],
+                         fill=PatternFill("solid", fgColor=YELLOW), font=Font(color=YELLOW_FONT, bold=True)))
+    ws_dash.conditional_formatting.add(rng, CellIsRule(operator="equal", formula=['"Price Review"'],
+                         fill=PatternFill("solid", fgColor=ORANGE), font=Font(color=ORANGE_FONT, bold=True)))
+    ws_dash.conditional_formatting.add(rng, CellIsRule(operator="equal", formula=['"Reject"'],
+                         fill=PatternFill("solid", fgColor=RED), font=Font(color=RED_FONT, bold=True)))
+
+
+def add_topn_table(start_row, key_range, n):
+    """n ranked rows pulled via LARGE()+MATCH() on a rank-key range (either a
+    hidden Product Tracker column or a hidden Dashboard-local column above).
+    Works in Excel/LibreOffice/Sheets alike (no QUERY/FILTER/SORT needed)."""
+    band_fill = PatternFill("solid", fgColor=DASH_CREAM)
+    for i in range(n):
+        row = start_row + i
+        key = f"LARGE({key_range},{i + 1})"
+        match = f"MATCH({key},{key_range},0)"
+        valid = f"{key}>-9000"
+        ws_dash.cell(row=row, column=1, value=i + 1)
+        ws_dash.merge_cells(f"B{row}:E{row}")
+        ws_dash.cell(row=row, column=2,
+                     value=f'=IF({valid},IFERROR(INDEX({PT}!$C${pt_first}:$C${pt_last},{match}),""),"")')
+        ws_dash.merge_cells(f"F{row}:G{row}")
+        ws_dash.cell(row=row, column=6,
+                     value=f'=IF({valid},IFERROR(INDEX({PT}!$A${pt_first}:$A${pt_last},{match}),""),"")')
+        ws_dash.cell(row=row, column=8,
+                     value=f'=IF({valid},IFERROR(INDEX({PT}!$AC${pt_first}:$AC${pt_last},{match}),""),"")')
+        ws_dash.merge_cells(f"I{row}:J{row}")
+        ws_dash.cell(row=row, column=9,
+                     value=f'=IF({valid},IFERROR(INDEX({PT}!$AD${pt_first}:$AD${pt_last},{match}),""),"")')
+        ws_dash.merge_cells(f"K{row}:L{row}")
+        ws_dash.cell(row=row, column=11,
+                     value=f'=IF({valid},IFERROR(INDEX({PT}!$P${pt_first}:$P${pt_last},{match}),""),"")')
+        for c in range(1, 13):
+            cell = ws_dash.cell(row=row, column=c)
+            cell.border = row_border
+            cell.alignment = Alignment(horizontal="center" if c in (1, 8, 9, 11) else "left", vertical="center")
+            if i % 2 == 1:
+                cell.fill = band_fill
+        ws_dash.cell(row=row, column=8).number_format = "0"
+        ws_dash.cell(row=row, column=11).number_format = MONEY_FMT
+        ws_dash.row_dimensions[row].height = 16
+    apply_score_badges(f"H{start_row}:H{start_row + n - 1}")
+    apply_decision_badges(f"I{start_row}:J{start_row + n - 1}")
+
+
+# ---- Premium branded header ----
+ws_dash.row_dimensions[1].height = 32
+ws_dash.row_dimensions[2].height = 16
+ws_dash.row_dimensions[3].height = 20
+for c in range(1, 13):
+    ws_dash.cell(row=1, column=c).fill = PatternFill("solid", fgColor=DASH_ROSE)
+    ws_dash.cell(row=2, column=c).fill = PatternFill("solid", fgColor=DASH_ROSE)
+    ws_dash.cell(row=3, column=c).fill = PatternFill("solid", fgColor=DASH_GOLD)
+ws_dash.merge_cells("A1:L1")
+ws_dash["A1"] = "AAYNA PRODUCT SCOUT"
+ws_dash["A1"].font = Font(bold=True, size=20, color=DASH_WHITE)
+ws_dash["A1"].alignment = Alignment(horizontal="center", vertical="center")
+ws_dash.merge_cells("A2:L2")
+ws_dash["A2"] = "Reflect your everyday style."
+ws_dash["A2"].font = Font(italic=True, size=10, color=DASH_MIST)
+ws_dash["A2"].alignment = Alignment(horizontal="center", vertical="center")
+ws_dash.merge_cells("A3:L3")
+ws_dash["A3"] = "SOURCING DASHBOARD"
+ws_dash["A3"].font = Font(bold=True, size=12, color=DASH_ESPRESSO)
+ws_dash["A3"].alignment = Alignment(horizontal="center", vertical="center")
+
+# ---- KPI Overview ----
+section_title(5, "KPI Overview")
+kpi_card(6, 0, "Total Products", f'=COUNTA({PT}!C{pt_first}:C{pt_last})', DASH_ESPRESSO)
+kpi_card(6, 1, "Buy", f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Buy")', GREEN_FONT)
+kpi_card(6, 2, "Maybe", f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Maybe")', YELLOW_FONT)
+kpi_card(6, 3, "Price Review", f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Price Review")', ORANGE_FONT)
+kpi_card(10, 0, "Reject", f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"Reject")', RED_FONT)
+kpi_card(10, 1, "Website Ready", f'=COUNTIF({PT}!BL{pt_first}:BL{pt_last},"Yes")', GREEN_FONT)
+kpi_card(10, 2, "High Risk",
+         f'=SUMPRODUCT(--(({PT}!AY{pt_first}:AY{pt_last}="High")+({PT}!BA{pt_first}:BA{pt_last}="High")'
+         f'+(({PT}!AB{pt_first}:AB{pt_last}<>"")*({PT}!AB{pt_first}:AB{pt_last}<=2))>0))', RED_FONT)
+addr_approved_cost = kpi_card(10, 3, "Approved Cost",
+         f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AW{pt_first}:AW{pt_last})',
+         DASH_GOLD, number_format=MONEY_FMT, value_size=16)
+
+# ---- Budget Overview ----
+section_title(14, "Budget Overview")
+addr_cost = kpi_card(15, 0, "Approved Purchase Cost",
+        f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AW{pt_first}:AW{pt_last})',
+        DASH_ESPRESSO, number_format=MONEY_FMT, value_size=16)
+addr_remaining = kpi_card(15, 1, "Remaining Budget", f"=MONTHLY_BUDGET-{addr_cost}",
+        GREEN_FONT, number_format=MONEY_FMT, value_size=16)
+kpi_card(15, 2, "Approved Quantity",
+        f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AV{pt_first}:AV{pt_last})',
+        DASH_TAUPE, number_format="#,##0", value_size=16)
+kpi_card(15, 3, "Approved Products", f'=COUNTIF({PT}!AG{pt_first}:AG{pt_last},"Approved")',
+        DASH_TAUPE, number_format="#,##0", value_size=16)
+
+ws_dash.conditional_formatting.add(addr_remaining, CellIsRule(operator="lessThan", formula=["0"],
+                     font=Font(color=RED_FONT, bold=True, size=16)))
+
+# Budget Used progress bar
+ws_dash.row_dimensions[18].height = 22
+ws_dash.merge_cells("A18:C18")
+ws_dash["A18"] = "BUDGET USED"
+ws_dash["A18"].font = Font(bold=True, size=9, color=DASH_TAUPE)
+ws_dash["A18"].alignment = Alignment(horizontal="left", vertical="center", indent=1)
+ws_dash.merge_cells("D18:L18")
+addr_budget_pct = "D18"
+ws_dash[addr_budget_pct] = f'=IF(MONTHLY_BUDGET=0,"",{addr_cost}/MONTHLY_BUDGET)'
+ws_dash[addr_budget_pct].number_format = "0%"
+ws_dash[addr_budget_pct].font = Font(bold=True, size=12, color=DASH_ESPRESSO)
+ws_dash[addr_budget_pct].alignment = Alignment(horizontal="center", vertical="center")
+for c in range(1, 13):
+    ws_dash.cell(row=18, column=c).border = row_border
+ws_dash.conditional_formatting.add(addr_budget_pct, DataBarRule(
+    start_type="num", start_value=0, end_type="num", end_value=1, color=DASH_GOLD))
+ws_dash.conditional_formatting.add(addr_budget_pct, CellIsRule(operator="greaterThanOrEqual", formula=["1"],
+                     font=Font(color=RED_FONT, bold=True, size=12)))
+ws_dash.conditional_formatting.add(addr_budget_pct, CellIsRule(operator="greaterThanOrEqual", formula=["0.8"],
+                     font=Font(color=ORANGE_FONT, bold=True, size=12)))
+
+# ---- Top Products to Buy ----
+section_title(20, "Top Products to Buy")
+table_header(21, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
+add_topn_table(22, f"$R${pt_first}:$R${pt_last}", 8)
+
+# ---- Products Needing Partner Review ----
+section_title(31, "Products Needing Partner Review")
+table_header(32, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
+add_topn_table(33, f"{PT}!$AN${pt_first}:$AN${pt_last}", 8)
+
+# ---- Website Ready Products ----
+section_title(42, "Website Ready Products")
+table_header(43, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
+add_topn_table(44, f"$S${pt_first}:$S${pt_last}", 6)
+
+# ---- High Risk / Warning Products ----
+section_title(51, "High Risk / Warning Products")
+table_header(52, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
+add_topn_table(53, f"$T${pt_first}:$T${pt_last}", 6)
+
+# ---- Hidden chart-source data (kept off to the side, rows hidden) ----
+ws_dash["A65"] = "Decision"
+ws_dash["B65"] = "Count"
+decision_labels = ["Buy", "Maybe", "Price Review", "Reject"]
+decision_addrs = [None, None, None, None]
+for i, lbl in enumerate(decision_labels):
+    r = 66 + i
+    ws_dash.cell(row=r, column=1, value=lbl)
+    ws_dash.cell(row=r, column=2, value=f'=COUNTIF({PT}!AD{pt_first}:AD{pt_last},"{lbl}")')
+
+ws_dash["A70"] = "Sourcing Status"
+ws_dash["B70"] = "Count"
+pipeline_stages = ["Not Started", "Sourcing", "Sample Ordered", "Sample Received",
+                    "Approved - Not Ordered", "Ordered", "In Transit", "Arrived", "Live on Website"]
+for i, stage in enumerate(pipeline_stages):
+    r = 71 + i
+    ws_dash.cell(row=r, column=1, value=stage)
+    ws_dash.cell(row=r, column=2, value=f'=COUNTIF({PT}!BF{pt_first}:BF{pt_last},"{stage}")')
+
+for r in range(65, 81):
+    ws_dash.row_dimensions[r].hidden = True
+
+# ---- Decision Breakdown chart ----
+decision_chart = PieChart()
+decision_chart.title = "Decision Breakdown"
+decision_chart.height, decision_chart.width = 8, 12
+data = Reference(ws_dash, min_col=2, min_row=65, max_row=69)
+cats = Reference(ws_dash, min_col=1, min_row=66, max_row=69)
+decision_chart.add_data(data, titles_from_data=True)
+decision_chart.set_categories(cats)
+decision_chart.series[0].data_points = [
+    DataPoint(idx=0, spPr=GraphicalProperties(solidFill=GREEN_FONT)),
+    DataPoint(idx=1, spPr=GraphicalProperties(solidFill=YELLOW_FONT)),
+    DataPoint(idx=2, spPr=GraphicalProperties(solidFill=ORANGE_FONT)),
+    DataPoint(idx=3, spPr=GraphicalProperties(solidFill=RED_FONT)),
 ]
-value_fonts = [
-    Font(bold=True, size=16, color=ESPRESSO),
-    Font(bold=True, size=14, color=GREEN_FONT),
-    Font(bold=True, size=14, color=YELLOW_FONT),
-    Font(bold=True, size=14, color=ORANGE_FONT),
-    Font(bold=True, size=14, color=RED_FONT),
-]
-for i, (label, formula, vfont) in enumerate(zip(labels, formulas, value_fonts)):
-    kpi_row(5 + i, label, formula, value_font=vfont, zebra_index=i)
+ws_dash.add_chart(decision_chart, "N5")
 
-# ---- Sourcing & Operations ----
-section_title(12, "Sourcing & Operations")
-labels2 = [
-    "Total estimated purchase cost for approved products",
-    "Products ready for website upload",
-    "High-risk products",
-    "Products with high reel/photo potential",
-    "Products approved but not ordered yet",
-    "Products ordered but not arrived yet",
-]
-formulas2 = [
-    f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AW{pt_first}:AW{pt_last})',
-    f'=COUNTIF({PT}!BL{pt_first}:BL{pt_last},"Yes")',
-    f'=SUMPRODUCT(--(({PT}!AY{pt_first}:AY{pt_last}="High")+({PT}!BA{pt_first}:BA{pt_last}="High")'
-    f'+(({PT}!AB{pt_first}:AB{pt_last}<>"")*({PT}!AB{pt_first}:AB{pt_last}<=2))>0))',
-    f'=COUNTIF({PT}!X{pt_first}:X{pt_last},">=4")',
-    f'=COUNTIFS({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!BF{pt_first}:BF{pt_last},"Approved - Not Ordered")',
-    f'=COUNTIF({PT}!BF{pt_first}:BF{pt_last},"Ordered")+COUNTIF({PT}!BF{pt_first}:BF{pt_last},"In Transit")',
-]
-value_fonts2 = [
-    Font(bold=True, size=14, color=ESPRESSO),
-    Font(bold=True, size=14, color=GREEN_FONT),
-    Font(bold=True, size=14, color=RED_FONT),
-    Font(bold=True, size=14, color=MAUVE),
-    Font(bold=True, size=14, color=YELLOW_FONT),
-    Font(bold=True, size=14, color=ORANGE_FONT),
-]
-number_formats2 = ['#,##0 "BDT"', None, None, None, None, None]
-for i, (label, formula, vfont, nf) in enumerate(zip(labels2, formulas2, value_fonts2, number_formats2)):
-    kpi_row(13 + i, label, formula, value_font=vfont, number_format=nf, zebra_index=i)
-
-# ---- Monthly Budget ----
-section_title(21, "Monthly Budget")
-labels3 = [
-    "Approved Purchase Cost",
-    "Remaining Budget",
-    "Budget Used %",
-    "Approved Quantity",
-    "Number of Approved Products",
-]
-formulas3 = [
-    f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AW{pt_first}:AW{pt_last})',
-    "=MONTHLY_BUDGET-D22",
-    '=IF(MONTHLY_BUDGET=0,"",D22/MONTHLY_BUDGET)',
-    f'=SUMIF({PT}!AG{pt_first}:AG{pt_last},"Approved",{PT}!AV{pt_first}:AV{pt_last})',
-    f'=COUNTIF({PT}!AG{pt_first}:AG{pt_last},"Approved")',
-]
-number_formats3 = ['#,##0 "BDT"', '#,##0 "BDT"', "0%", "#,##0", "#,##0"]
-for i, (label, formula, nf) in enumerate(zip(labels3, formulas3, number_formats3)):
-    kpi_row(22 + i, label, formula, number_format=nf, zebra_index=i)
-
-# Remaining Budget (D23): red if over budget, green if healthy
-ws_dash.conditional_formatting.add("D23", CellIsRule(operator="lessThan", formula=["0"],
-                     fill=PatternFill("solid", fgColor=RED), font=Font(color=RED_FONT, bold=True, size=14)))
-ws_dash.conditional_formatting.add("D23", CellIsRule(operator="greaterThanOrEqual", formula=["0"],
-                     font=Font(color=GREEN_FONT, bold=True, size=14)))
-# Budget Used % (D24): traffic-light thresholds
-ws_dash.conditional_formatting.add("D24", CellIsRule(operator="greaterThanOrEqual", formula=["1"],
-                     fill=PatternFill("solid", fgColor=RED), font=Font(color=RED_FONT, bold=True, size=14)))
-ws_dash.conditional_formatting.add("D24", CellIsRule(operator="greaterThanOrEqual", formula=["0.8"],
-                     fill=PatternFill("solid", fgColor=ORANGE), font=Font(color=ORANGE_FONT, bold=True, size=14)))
-ws_dash.conditional_formatting.add("D24", CellIsRule(operator="lessThan", formula=["0.8"],
-                     fill=PatternFill("solid", fgColor=GREEN), font=Font(color=GREEN_FONT, bold=True, size=14)))
-
-# ---- Top 10 highest scoring products ----
-row = 29
-section_title(row, "Top 10 Highest Scoring Products")
-table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
-add_topn_table(row + 2, "AJ", 10)
-
-# ---- Best products under BDT 700 ----
-row = 41
-section_title(row, "Best Products Under BDT 700")
-table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
-add_topn_table(row + 2, "AK", 5)
-
-# ---- Best products for reels/photos ----
-row = 48
-section_title(row, "Best Products for Reels/Photos")
-table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
-add_topn_table(row + 2, "AL", 5)
-
-# ---- Best giftable products ----
-row = 55
-section_title(row, "Best Giftable Products")
-table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
-add_topn_table(row + 2, "AM", 5)
-
-# ---- Products needing partner review ----
-row = 62
-section_title(row, "Products Needing Partner Review (Maybe / Price Review, not yet decided)")
-table_header(row + 1, ["Rank", "Product Name", "SKU", "Score", "Decision", "Suggested Price"])
-add_topn_table(row + 2, "AN", 15)
+# ---- Sourcing pipeline chart ----
+pipeline_chart = BarChart()
+pipeline_chart.type = "col"
+pipeline_chart.title = "Sourcing Pipeline"
+pipeline_chart.height, pipeline_chart.width = 8, 14
+pdata = Reference(ws_dash, min_col=2, min_row=70, max_row=79)
+pcats = Reference(ws_dash, min_col=1, min_row=71, max_row=79)
+pipeline_chart.add_data(pdata, titles_from_data=True)
+pipeline_chart.set_categories(pcats)
+pipeline_chart.series[0].graphicalProperties = GraphicalProperties(solidFill=DASH_GOLD)
+pipeline_chart.legend = None
+ws_dash.add_chart(pipeline_chart, "N24")
 
 # =====================================================================
 # TAB: CLAUDE SCORING PROMPT

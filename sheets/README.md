@@ -45,16 +45,21 @@ AAYNA's specific brand criteria.
    Used, AI Score Date, Scored By, Manual Score Adjusted?) for comparing how
    Claude/ChatGPT/Gemini first-opinion scores hold up. Includes 5
    demonstration rows, one for each decision branch.
-2. **Dashboard** — read-only live overview, reading from Product Tracker rows
-   3-500: totals by decision, total estimated purchase cost for approved
-   products, products ready for website upload, high-risk products, products
-   with high reel/photo potential, products approved but not ordered yet,
-   products ordered but not arrived yet, a Monthly Budget section (Approved
-   Purchase Cost, Remaining Budget, Budget Used %, Approved Quantity, Number
-   of Approved Products — tracked against the Monthly Inventory Budget set on
-   Settings), Top 10 highest scoring products, best products under BDT 700,
-   best for reels/photos, best giftable products, and everything still
-   awaiting partner review.
+2. **Dashboard** — read-only branded overview, reading from Product Tracker
+   rows 3-500, with its own AAYNA brand palette (Dusty Rose, Cream White,
+   Rose Mist, Antique Gold, Espresso Charcoal, Warm Taupe), gridlines hidden,
+   and a 3-line "AAYNA Product Scout / Reflect your everyday style. /
+   Sourcing Dashboard" header banner. Organized into 6 sections: **KPI
+   Overview** (8 large-number cards — Total Products, Buy, Maybe, Price
+   Review, Reject, Website Ready, High Risk, Approved Cost), **Budget
+   Overview** (Approved Purchase Cost, Remaining Budget, Approved Quantity,
+   Approved Products, tracked against the Monthly Inventory Budget set on
+   Settings, plus a Budget Used % progress bar), **Top Products to Buy**
+   (ranked, filtered to Decision = Buy), **Products Needing Partner Review**,
+   **Website Ready Products**, and **High Risk / Warning Products** — each a
+   ranked table with score and Decision color-coded as a badge. Also includes
+   a Decision Breakdown pie chart and a Sourcing Pipeline bar chart. BDT
+   amounts display as `৳#,##0` and percentages as `0%`.
 3. **Claude Scoring Prompt** — a ready-to-copy prompt for getting an AI first
    opinion on a product's 10 scores, recommended decision, and a content/reel
    idea, formatted to paste straight back into the Product Tracker.
