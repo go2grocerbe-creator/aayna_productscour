@@ -8,14 +8,19 @@ This app does not scrape SkyBuyBD, AliExpress, 1688, or any sourcing site. It do
 
 - Frontend: HTML, CSS, and vanilla JavaScript
 - Local development: Vite
-- MVP storage: Browser `localStorage`
+- MVP storage: Browser `localStorage` fallback plus optional Supabase cloud database
 - Export: Client-side CSV and JSON downloads
 - Future AI/API work: Add a backend before using API keys
 
 ## Current Storage
 
-Product candidates are stored in browser `localStorage` under `aaynaProducts`.
-Settings are stored in browser `localStorage` under `aaynaSettings`.
+BuyOS v0.4 supports two storage modes:
+
+- `local`: browser `localStorage`, used when Supabase is not configured or the user is signed out
+- `cloud`: Supabase, used only after a successful internal email/password sign-in and workspace membership lookup
+
+Local product candidates are stored under `aaynaProducts`.
+Local settings are stored under `aaynaSettings`.
 
 Saved data uses a simple schema marker:
 
@@ -24,7 +29,25 @@ app: AAYNABuyOS
 schemaVersion: 3
 ```
 
-This is suitable for a single-device MVP only. Clearing browser data will remove saved products unless you export a backup first.
+Local mode is suitable for a single-device fallback. Clearing browser data will remove local products unless you export a backup first.
+
+Cloud mode loads the first workspace where the signed-in Supabase Auth user is a member. The app does not auto-create workspaces. If no membership exists, it shows:
+
+```text
+No BuyOS workspace found for this account. Add the user to buyos_members in Supabase.
+```
+
+Expected workspace name:
+
+```text
+AAYNA BuyOS
+```
+
+Known workspace ID:
+
+```text
+cd97992c-d51c-496c-8c27-9bd7bc322aaf
+```
 
 ## BuyOS v0.3 Adds
 
@@ -54,6 +77,44 @@ This is suitable for a single-device MVP only. Clearing browser data will remove
 - v0.3.1 website CSV stock hardening so Stock Quantity is never blank
 - v0.3.2 website CSV duplicate hardening so duplicate SKU/slug/product rows are skipped at export time
 
+## BuyOS v0.4 Adds
+
+- Supabase client setup through Vite environment variables
+- Internal email/password sign-in using Supabase Auth
+- Local/cloud storage adapter with localStorage fallback
+- Workspace membership lookup through `buyos_members`
+- Product rows stored in `buyos_products` with full product JSON in `data`
+- Workspace settings stored in `buyos_settings.data`
+- Local-to-cloud migration button in Settings
+- Minimal audit events for product create/update/delete, settings update, and local migration
+- JSON backup/export remains available in local and cloud mode
+
+## BuyOS v0.4.1 Adds
+
+- `Reload from cloud` action in the storage panel
+- Cloud empty product lists stay empty instead of falling back to local demo data
+- Clear local demo data utility that removes only BuyOS localStorage keys
+- Duplicate workbook sample products are skipped by SKU, slug, or product name
+
+## BuyOS v0.4.2 Troubleshooting
+
+Cloud mode uses Supabase as the source of truth. If the SQL row count and dashboard count differ, click `Reload from cloud` in the storage panel.
+
+After reload, the dashboard `Total products` count should match the Supabase `buyos_products` row count for the active workspace. The storage panel also shows:
+
+- Cloud rows loaded
+- Active products shown
+- Local products stored
+- Last cloud reload time
+
+If Supabase returns a read/RLS error, BuyOS shows `Cloud product load failed: ...` instead of silently showing 0 products. A dashboard count of 0 should mean the cloud query succeeded and returned an empty array.
+
+## BuyOS v0.4.3 Troubleshooting
+
+If `Cloud rows loaded` is greater than `Active products shown`, the row mapping layer is dropping products before they reach the dashboard. BuyOS v0.4.3 maps every valid Supabase product row to one active BuyOS product.
+
+A valid Supabase product row has an `id` and object-like `data`. The mapper does not require product name, category, score fields, launch fields, website readiness fields, or local schema metadata to exist before showing the product.
+
 ## Launch Batch Workflow
 
 The Launch Batch shows approved products only. A product enters the Launch Batch when it is approved, using the existing approval meaning in the app. Newly approved products default to `shortlisted`.
@@ -64,7 +125,7 @@ Use the Launch Batch to move products through:
 Approved product -> shortlisted -> sample order -> ordered -> received -> photo ready -> website ready -> live
 ```
 
-Checklist changes and launch status changes save immediately to `localStorage`.
+Checklist changes and launch status changes save immediately to the active storage mode.
 
 ## Internal CSV vs Website CSV
 
@@ -94,7 +155,7 @@ All CSV exports quote fields, escape double quotes, preserve commas/newlines, an
 
 Use `Export BuyOS backup JSON` to download a full workspace backup containing products, settings, launch status, launch checklist, and schema metadata.
 
-Use `Import BuyOS backup JSON` to restore a backup. The app validates the file first and asks for confirmation before replacing current local data.
+Use `Import BuyOS backup JSON` to restore a backup. The app validates the file first and asks for confirmation before saving the imported products/settings to the active storage mode.
 
 Malformed JSON or invalid backup files should show an error and must not wipe current data.
 
@@ -132,6 +193,49 @@ Then open the local URL printed by Vite, usually:
 http://127.0.0.1:5173
 ```
 
+## Supabase Setup
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in only browser-safe Supabase values:
+
+```text
+VITE_SUPABASE_URL=https://ynpjsqqnpnjvlxtrxwkw.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_publishable_key_here
+```
+
+Older projects can use this fallback instead of `VITE_SUPABASE_PUBLISHABLE_KEY`:
+
+```text
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
+```
+
+Do not commit `.env.local`. Do not put a Supabase `service_role` key, direct database connection string, database password, or private API key in frontend env files.
+
+The database should include these tables:
+
+- `public.buyos_workspaces`
+- `public.buyos_members`
+- `public.buyos_products`
+- `public.buyos_settings`
+- `public.buyos_audit_events`
+
+Create the first Supabase Auth user in the Supabase dashboard, then create or verify the `AAYNA BuyOS` workspace row and add the Auth user to `buyos_members`. The frontend intentionally does not include signup UI and does not create workspaces automatically.
+
+## Local To Cloud Migration
+
+When Supabase is configured, the user is signed in, and a workspace membership exists, Settings shows:
+
+```text
+Migrate local BuyOS data to cloud
+```
+
+The migration uploads local products and settings to Supabase, skips products that already match by database id, legacy id, SKU, or slug, logs `local_migrated_to_cloud`, and does not delete localStorage data.
+
 ## Manual Test Checklist
 
 1. Load workbook samples.
@@ -150,20 +254,37 @@ http://127.0.0.1:5173
 14. Import the backup JSON and confirm products, settings, launch status, and checklist restore.
 15. Try importing invalid JSON and confirm current data remains unchanged.
 16. Try deleting a product and confirm the delete prompt appears.
+17. With no `.env.local`, confirm the app shows local mode and existing local products still load.
+18. With Supabase env configured but signed out, confirm the login panel appears and local mode remains usable.
+19. Sign in with a Supabase Auth user that has a `buyos_members` row and confirm Cloud mode, signed-in email, and workspace name appear.
+20. Sign in with a user that has no workspace membership and confirm the workspace error appears without crashing.
+21. Migrate local data to cloud and confirm upload/skipped/failed counts appear and local data remains available.
+22. Edit a product in Cloud mode, refresh, and confirm the edit persists.
+23. Change launch status/checklist in Cloud mode, refresh, and confirm the values persist.
+24. Export JSON backup in Cloud mode and confirm it includes cloud-loaded products/settings.
+25. Try an invalid login and confirm a safe error appears without a crash.
+26. Sign in to Cloud mode, delete all cloud products from Supabase, click Reload from cloud, and confirm the dashboard shows 0 products.
+27. Confirm old localStorage demo products do not reappear automatically after a successful empty cloud reload.
+28. Load workbook samples once, then load workbook samples again, and confirm duplicate samples are skipped with a clear message.
+29. Click Clear local demo data, accept the confirmation, refresh, and confirm cloud data remains correct.
+30. Confirm Supabase has one row for workspace `cd97992c-d51c-496c-8c27-9bd7bc322aaf`, click Reload from cloud, and confirm dashboard Total products is 1.
+31. Confirm the storage panel shows Cloud rows loaded: 1 and Active products shown: 1.
+32. Delete all cloud product rows, click Reload from cloud, and confirm dashboard Total products is 0 without old local demo products reappearing.
+33. Confirm the storage panel shows Cloud rows loaded: 1, Cloud products mapped: 1, and Active products shown: 1 when Supabase has one product row.
+34. Export JSON backup and confirm it contains the same number of products as Active products shown.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` when you add a backend later:
+Copy `.env.example` to `.env.local` for local Supabase testing:
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-Do not put real AI API keys in frontend code. Browser users can inspect frontend bundles, so OpenAI, Anthropic, Gemini, and similar keys must stay on a server.
+Do not put real AI API keys, Supabase service-role keys, direct database connection strings, or database passwords in frontend code. Browser users can inspect frontend bundles, so OpenAI, Anthropic, Gemini, and similar keys must stay on a server.
 
 ## Next After MVP
 
-- Replace localStorage with a shared database
 - Add authentication and role-based approval permissions
 - Add image uploads and product photo management
 - Add backend-only AI scoring

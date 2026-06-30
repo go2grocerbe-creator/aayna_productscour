@@ -29,6 +29,24 @@
       </aside>
 
       <main class="main-content">
+        <section class="auth-panel" aria-label="Internal login">
+          <div>
+            <p class="eyebrow">Internal access</p>
+            <h2>BuyOS Storage</h2>
+            <p id="storageStatusText" class="auth-status">Checking storage mode...</p>
+            <p id="storageDebugText" class="auth-debug">Cloud rows loaded: 0 | Cloud products mapped: 0 | Active products shown: 0 | Local products stored: 0 | Last cloud reload time: Never</p>
+          </div>
+          <form id="loginForm" class="login-form">
+            <input id="loginEmail" type="email" autocomplete="email" placeholder="Email" />
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" />
+            <button class="button secondary" type="submit">Sign in</button>
+          </form>
+          <div class="auth-actions">
+            <button id="reloadCloudBtn" class="button secondary hidden" type="button">Reload from cloud</button>
+            <button id="signOutBtn" class="button ghost hidden" type="button">Sign out</button>
+          </div>
+        </section>
+
         <header class="topbar">
           <div>
             <p class="eyebrow">Bangladesh women's accessories sourcing</p>
@@ -344,6 +362,8 @@
             <label>Default misc fee/unit<input id="defaultMiscFee" type="number" min="0" step="1" /></label>
             <div class="form-actions span-2">
               <button class="button primary" type="submit">Save settings</button>
+              <button id="migrateCloudBtn" class="button secondary hidden" type="button">Migrate local BuyOS data to cloud</button>
+              <button id="clearLocalDataBtn" class="button ghost" type="button">Clear local demo data</button>
             </div>
           </form>
         </section>

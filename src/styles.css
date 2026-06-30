@@ -131,6 +131,53 @@ a {
   padding: 26px;
 }
 
+.auth-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(320px, auto) auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.auth-panel h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.auth-status {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.auth-debug {
+  margin: 4px 0 0;
+  color: var(--warm-taupe);
+  font-size: 12px;
+}
+
+.login-form {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) auto;
+  gap: 8px;
+}
+
+.login-form input {
+  min-width: 0;
+}
+
+.auth-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .topbar,
 .section,
 .panel {
@@ -815,6 +862,7 @@ textarea {
 
   .stats-grid,
   .dashboard-grid,
+  .auth-panel,
   .filters,
   .product-details,
   .launch-grid,
@@ -840,6 +888,9 @@ textarea {
   }
 
   .nav-list,
+  .auth-panel,
+  .auth-actions,
+  .login-form,
   .stats-grid,
   .dashboard-grid,
   .form-grid,
@@ -850,6 +901,14 @@ textarea {
   .calculator-preview,
   .score-grid {
     grid-template-columns: 1fr;
+  }
+
+  .auth-actions {
+    justify-content: stretch;
+  }
+
+  .auth-actions .button {
+    width: 100%;
   }
 
   .span-2 {

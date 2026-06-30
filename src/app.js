@@ -1,3 +1,5 @@
+import * as buyosStorage from "./storage.js";
+
 const TODAY = new Date().toISOString().slice(0, 10);
 const APP_SCHEMA_VERSION = 3;
 const PRODUCTS_STORAGE_KEY = "aaynaProducts";
@@ -356,8 +358,15 @@ const SAMPLE_PRODUCTS = [
   }
 ];
 
-let products = loadProducts();
-let settings = loadSettings();
+let products = [];
+let settings = { ...DEFAULT_SETTINGS };
+let storageState = {
+  mode: "local",
+  user: null,
+  workspace: null,
+  status: "Local mode",
+  error: ""
+};
 
 const form = document.querySelector("#productForm");
 const settingsForm = document.querySelector("#settingsForm");
@@ -365,56 +374,51 @@ const scoreInputs = document.querySelector("#scoreInputs");
 const calculatorPreview = document.querySelector("#calculatorPreview");
 const emptyStateTemplate = document.querySelector("#emptyStateTemplate");
 const formMessage = document.querySelector("#formMessage");
+const storageStatusText = document.querySelector("#storageStatusText");
+const storageDebugText = document.querySelector("#storageDebugText");
+const loginForm = document.querySelector("#loginForm");
+const signOutBtn = document.querySelector("#signOutBtn");
+const migrateCloudBtn = document.querySelector("#migrateCloudBtn");
+const reloadCloudBtn = document.querySelector("#reloadCloudBtn");
+const clearLocalDataBtn = document.querySelector("#clearLocalDataBtn");
 
-function loadProducts() {
+async function loadActiveStorageState() {
+  storageState = await buyosStorage.initializeStorage();
+  const loadedProducts = Array.isArray(storageState.products) ? storageState.products : [];
+  products = loadedProducts.map(normalizeProduct);
+  settings = {
+    ...DEFAULT_SETTINGS,
+    ...(storageState.settings || {})
+  };
+  renderStorageStatus();
+}
+
+async function saveProducts(nextProducts = products) {
   try {
-    const raw = localStorage.getItem(PRODUCTS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    const rawProducts = Array.isArray(parsed) ? parsed : parsed.products;
-    if (!Array.isArray(rawProducts)) return [];
-    const normalized = rawProducts.map(normalizeProduct);
-    const needsMigration = Array.isArray(parsed)
-      || parsed.schemaVersion !== APP_SCHEMA_VERSION
-      || JSON.stringify(rawProducts) !== JSON.stringify(normalized);
-    if (needsMigration) saveProducts(normalized);
-    return normalized;
-  } catch {
-    return [];
+    await buyosStorage.saveBuyosState({ products: nextProducts.map(normalizeProduct) });
+  } catch (error) {
+    showMessage("error", `Cloud save failed: ${error.message || "Could not save products"}`);
+    throw error;
   }
 }
 
-function saveProducts(nextProducts = products) {
-  localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify({
-    app: BACKUP_APP_MARKER,
-    schemaVersion: APP_SCHEMA_VERSION,
-    savedAt: new Date().toISOString(),
-    products: nextProducts.map(normalizeProduct)
-  }));
-}
-
-function loadSettings() {
+async function saveProductToStorage(product) {
   try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SETTINGS };
-    const parsed = JSON.parse(raw);
-    const loadedSettings = parsed.settings || parsed;
-    return {
-      ...DEFAULT_SETTINGS,
-      ...loadedSettings
-    };
-  } catch {
-    return { ...DEFAULT_SETTINGS };
+    const saved = await buyosStorage.saveProduct(normalizeProduct(product));
+    return normalizeProduct(saved);
+  } catch (error) {
+    showMessage("error", `Cloud save failed: ${error.message || "Could not save product"}`);
+    throw error;
   }
 }
 
-function saveSettings() {
-  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
-    app: BACKUP_APP_MARKER,
-    schemaVersion: APP_SCHEMA_VERSION,
-    savedAt: new Date().toISOString(),
-    settings
-  }));
+async function saveSettings() {
+  try {
+    await buyosStorage.saveSettings(settings);
+  } catch (error) {
+    showMessage("error", `Cloud save failed: ${error.message || "Could not save settings"}`);
+    throw error;
+  }
 }
 
 function normalizeProduct(product) {
@@ -918,6 +922,45 @@ function renderSettings() {
   });
 }
 
+function renderStorageStatus() {
+  const mode = buyosStorage.getStorageMode();
+  const user = buyosStorage.getCurrentUser();
+  const workspace = buyosStorage.getCurrentWorkspace();
+  const configured = buyosStorage.isSupabaseConfigured;
+  const diagnostics = buyosStorage.getStorageDiagnostics();
+  const statusParts = [];
+
+  if (!configured) {
+    statusParts.push("Local mode: Supabase is not configured.");
+  } else if (mode === "cloud" && user && workspace) {
+    statusParts.push("Storage mode: Cloud");
+    statusParts.push(`Signed in: ${user.email || "Supabase user"}`);
+    statusParts.push(`Workspace: ${workspace.name || "AAYNA BuyOS"}`);
+  } else if (user && workspace) {
+    statusParts.push("Storage mode: Local fallback");
+    statusParts.push(buyosStorage.getStorageError() || "Cloud load failed. Local mode is still available.");
+  } else if (user && !workspace) {
+    statusParts.push("Storage mode: Local fallback");
+    statusParts.push("No BuyOS workspace found for this account. Add the user to buyos_members in Supabase.");
+  } else {
+    statusParts.push("Storage mode: Local");
+    statusParts.push("Cloud sync requires sign-in.");
+  }
+
+  storageStatusText.textContent = statusParts.join(" | ");
+  storageDebugText.textContent = [
+    `Cloud rows loaded: ${diagnostics.cloudRowsLoaded}`,
+    `Cloud products mapped: ${diagnostics.cloudProductsLoaded}`,
+    `Active products shown: ${products.length}`,
+    `Local products stored: ${diagnostics.localProductsStored}`,
+    `Last cloud reload time: ${diagnostics.lastCloudReloadAt ? new Date(diagnostics.lastCloudReloadAt).toLocaleString() : "Never"}`
+  ].join(" | ");
+  loginForm.classList.toggle("hidden", !configured || Boolean(user));
+  signOutBtn.classList.toggle("hidden", !configured || !user);
+  reloadCloudBtn.classList.toggle("hidden", !(configured && mode === "cloud" && user && workspace));
+  migrateCloudBtn.classList.toggle("hidden", !(configured && mode === "cloud" && user && workspace));
+}
+
 function renderStats() {
   const computed = products.map(productWithComputed);
   const approved = computed.filter(isApproved);
@@ -959,7 +1002,7 @@ function needsPartnerReview(product) {
 function renderCompactList(id, items) {
   const container = document.querySelector(`#${id}`);
   if (!items.length) {
-    container.innerHTML = emptyState("No products yet. Add your first product candidate or load demo samples.");
+    container.innerHTML = emptyState(emptyProductsMessage());
     return;
   }
   container.innerHTML = items.map((product) => `
@@ -975,6 +1018,12 @@ function renderCompactList(id, items) {
 
 function emptyState(message) {
   return `<div class="empty-state">${escapeHtml(message)}</div>`;
+}
+
+function emptyProductsMessage() {
+  return buyosStorage.getStorageMode() === "cloud"
+    ? "Cloud workspace is empty. Add a product or migrate local data."
+    : "No products yet. Add your first product candidate or load demo samples.";
 }
 
 function renderDashboardLists() {
@@ -1027,7 +1076,7 @@ function renderProductList() {
   if (!filtered.length) {
     container.innerHTML = emptyState(products.length
       ? "No products match this filter."
-      : "No products yet. Add your first product candidate or load demo samples.");
+      : emptyProductsMessage());
     return;
   }
 
@@ -1153,6 +1202,7 @@ function isRenderableImage(value) {
 
 function renderAll() {
   products = products.map(normalizeProduct);
+  renderStorageStatus();
   renderStats();
   renderDashboardLists();
   updateFilterOptions();
@@ -1161,13 +1211,17 @@ function renderAll() {
   renderCalculatorPreview();
 }
 
-function setProductPatch(id, patch) {
+async function setProductPatch(id, patch) {
   products = products.map((product) => product.id === id ? normalizeProduct({ ...product, ...patch, updatedAt: new Date().toISOString() }) : product);
-  saveProducts();
+  const updated = products.find((product) => product.id === id);
+  if (updated) {
+    const saved = await saveProductToStorage(updated);
+    products = products.map((product) => product.id === id ? saved : product);
+  }
   renderAll();
 }
 
-function approveProduct(id) {
+async function approveProduct(id) {
   const product = products.find((item) => item.id === id);
   if (!product) return;
   const computed = productWithComputed(product);
@@ -1178,7 +1232,7 @@ function approveProduct(id) {
       showMessage("error", "Approval blocked. Rejected products require an override reason before approval.");
       return;
     }
-    setProductPatch(id, {
+    await setProductPatch(id, {
       approvalStatus: "Approved",
       approvalOverrideReason: reason.trim(),
       launchStatus: product.launchStatus || "shortlisted",
@@ -1188,17 +1242,22 @@ function approveProduct(id) {
     return;
   }
 
-  setProductPatch(id, { approvalStatus: "Approved", launchStatus: product.launchStatus || "shortlisted", dateDecided: TODAY });
+  await setProductPatch(id, { approvalStatus: "Approved", launchStatus: product.launchStatus || "shortlisted", dateDecided: TODAY });
   showMessage("success", `"${product.productName}" was approved.`);
 }
 
-function deleteProduct(id) {
+async function deleteProduct(id) {
   const product = products.find((item) => item.id === id);
   if (!product) return;
   if (!confirm(`Delete "${product.productName}"?`)) return;
-  products = products.filter((item) => item.id !== id);
-  saveProducts();
-  renderAll();
+  try {
+    await buyosStorage.deleteProduct(id);
+    products = products.filter((item) => item.id !== id);
+    renderAll();
+    showMessage("success", `"${product.productName}" was deleted.`);
+  } catch (error) {
+    showMessage("error", `Cloud save failed: ${error.message || "Could not delete product"}`);
+  }
 }
 
 function exportApprovedCsv() {
@@ -1291,6 +1350,21 @@ function normalizeKey(value) {
 
 function productExportLabel(product) {
   return `${product.productName || "Unnamed product"}${product.sku ? ` (${product.sku})` : ""}`;
+}
+
+function productIdentityKeys(product) {
+  return [
+    product.sku ? `sku:${normalizeKey(product.sku)}` : "",
+    product.slug ? `slug:${normalizeKey(product.slug)}` : "",
+    product.productName ? `name:${normalizeKey(product.productName)}` : ""
+  ].filter(Boolean);
+}
+
+function hasProductIdentityMatch(candidate, existingProducts) {
+  const candidateKeys = productIdentityKeys(candidate);
+  if (!candidateKeys.length) return false;
+  const existingKeys = new Set(existingProducts.flatMap(productIdentityKeys));
+  return candidateKeys.some((key) => existingKeys.has(key));
 }
 
 function exportDecisionCsv() {
@@ -1398,8 +1472,7 @@ async function importBackupJson(file) {
 
     products = backup.products.map(normalizeProduct);
     settings = { ...DEFAULT_SETTINGS, ...(backup.settings || {}) };
-    saveProducts();
-    saveSettings();
+    await buyosStorage.saveBuyosState({ products, settings });
     renderSettings();
     resetForm();
     renderAll();
@@ -1459,7 +1532,7 @@ function escapeAttribute(value) {
 
 form.addEventListener("input", renderCalculatorPreview);
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
   hideMessage();
   try {
@@ -1477,22 +1550,22 @@ form.addEventListener("submit", (event) => {
       return;
     }
 
-    const existingIndex = products.findIndex((item) => item.id === product.id);
+    const savedProduct = await saveProductToStorage(product);
+    const existingIndex = products.findIndex((item) => item.id === savedProduct.id);
     if (existingIndex >= 0) {
-      products[existingIndex] = product;
+      products[existingIndex] = savedProduct;
     } else {
-      products.unshift(product);
+      products.unshift(savedProduct);
     }
-    saveProducts();
     resetForm();
     renderAll();
-    showMessage("success", `"${product.productName}" was saved successfully.`);
+    showMessage("success", `"${savedProduct.productName}" was saved successfully.`);
   } catch (error) {
     showMessage("error", `Save failed: ${error.message || "Unknown error"}`);
   }
 });
 
-settingsForm.addEventListener("submit", (event) => {
+settingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   settings = {
     usdRate: numberValue("usdRate", DEFAULT_SETTINGS.usdRate),
@@ -1506,21 +1579,26 @@ settingsForm.addEventListener("submit", (event) => {
     defaultCustomsPct: numberValue("defaultCustomsPct", DEFAULT_SETTINGS.defaultCustomsPct),
     defaultMiscFee: numberValue("defaultMiscFee", DEFAULT_SETTINGS.defaultMiscFee)
   };
-  saveSettings();
-  renderAll();
+  try {
+    await saveSettings();
+    renderAll();
+    showMessage("success", "Settings saved.");
+  } catch {
+    renderAll();
+  }
 });
 
-document.querySelector("#productList").addEventListener("click", (event) => {
+document.querySelector("#productList").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const { action, id } = button.dataset;
-  if (action === "approve") approveProduct(id);
-  if (action === "watchlist") setProductPatch(id, { approvalStatus: "On Hold" });
-  if (action === "reject") setProductPatch(id, { approvalStatus: "Rejected", dateDecided: TODAY });
-  if (action === "ordered") setProductPatch(id, { sourcingStatus: "Ordered", launchStatus: "ordered" });
-  if (action === "arrived") setProductPatch(id, { sourcingStatus: "Arrived", launchStatus: "received", arrivalDate: TODAY, qcStatus: "QC Pending" });
+  if (action === "approve") await approveProduct(id);
+  if (action === "watchlist") await setProductPatch(id, { approvalStatus: "On Hold" });
+  if (action === "reject") await setProductPatch(id, { approvalStatus: "Rejected", dateDecided: TODAY });
+  if (action === "ordered") await setProductPatch(id, { sourcingStatus: "Ordered", launchStatus: "ordered" });
+  if (action === "arrived") await setProductPatch(id, { sourcingStatus: "Arrived", launchStatus: "received", arrivalDate: TODAY, qcStatus: "QC Pending" });
   if (action === "websiteReady") {
-    setProductPatch(id, {
+    await setProductPatch(id, {
       productNameFinalized: "Yes",
       skuFinalized: "Yes",
       photosReady: "Yes",
@@ -1530,7 +1608,7 @@ document.querySelector("#productList").addEventListener("click", (event) => {
       sourcingStatus: "Live on Website"
     });
   }
-  if (action === "delete") deleteProduct(id);
+  if (action === "delete") await deleteProduct(id);
   if (action === "edit") {
     const product = products.find((item) => item.id === id);
     if (product) {
@@ -1540,10 +1618,10 @@ document.querySelector("#productList").addEventListener("click", (event) => {
   }
 });
 
-document.querySelector("#launchBatchList").addEventListener("change", (event) => {
+document.querySelector("#launchBatchList").addEventListener("change", async (event) => {
   const statusProductId = event.target.dataset.launchStatus;
   if (statusProductId) {
-    setProductPatch(statusProductId, { launchStatus: event.target.value });
+    await setProductPatch(statusProductId, { launchStatus: event.target.value });
     showMessage("success", "Launch status updated.");
     return;
   }
@@ -1553,7 +1631,7 @@ document.querySelector("#launchBatchList").addEventListener("change", (event) =>
   if (checklistProductId && checkKey) {
     const product = products.find((item) => item.id === checklistProductId);
     if (!product) return;
-    setProductPatch(checklistProductId, {
+    await setProductPatch(checklistProductId, {
       launchChecklist: {
         ...DEFAULT_LAUNCH_CHECKLIST,
         ...(product.launchChecklist || {}),
@@ -1576,22 +1654,135 @@ document.querySelector("#importBackupInput").addEventListener("change", async (e
   await importBackupJson(event.target.files?.[0]);
   event.target.value = "";
 });
-document.querySelector("#seedDataBtn").addEventListener("click", () => {
+document.querySelector("#seedDataBtn").addEventListener("click", async () => {
   hideMessage();
   const stampedSamples = SAMPLE_PRODUCTS.map((product, index) => normalizeProduct({
     ...product,
     id: crypto.randomUUID(),
     sku: generateSku(product, index),
+    slug: slugify(product.productName || generateSku(product, index)),
     updatedAt: new Date().toISOString()
   }));
-  products = [...stampedSamples, ...products];
-  saveProducts();
-  renderAll();
-  showMessage("success", "Loaded 5 demo products covering Buy, Maybe, Price Review, Reject by price, and Reject by quality/aesthetic.");
+  const newSamples = [];
+  let skipped = 0;
+  for (const sample of stampedSamples) {
+    if (hasProductIdentityMatch(sample, [...products, ...newSamples])) {
+      skipped += 1;
+    } else {
+      newSamples.push(sample);
+    }
+  }
+  if (!newSamples.length && skipped) {
+    showMessage("success", "Skipped duplicate sample products already in BuyOS.");
+    return;
+  }
+  try {
+    const savedSamples = [];
+    for (const product of newSamples) {
+      savedSamples.push(await saveProductToStorage(product));
+    }
+    products = [...savedSamples, ...products];
+    renderAll();
+    showMessage("success", skipped
+      ? `Loaded ${savedSamples.length} demo products. Skipped duplicate sample products already in BuyOS.`
+      : "Loaded 5 demo products covering Buy, Maybe, Price Review, Reject by price, and Reject by quality/aesthetic.");
+  } catch (error) {
+    showMessage("error", `Demo load failed: ${error.message || "Could not save sample products"}`);
+  }
 });
 
-initializeDropdowns();
-renderScoreInputs();
-renderSettings();
-resetForm();
-renderAll();
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  hideMessage();
+  const email = document.querySelector("#loginEmail").value.trim();
+  const password = document.querySelector("#loginPassword").value;
+  if (!email || !password) {
+    showMessage("error", "Enter email and password to sign in.");
+    return;
+  }
+  try {
+    storageState = await buyosStorage.signIn(email, password);
+    products = (storageState.products || []).map(normalizeProduct);
+    settings = { ...DEFAULT_SETTINGS, ...(storageState.settings || {}) };
+    loginForm.reset();
+    renderSettings();
+    resetForm();
+    renderAll();
+    renderStorageStatus();
+    showMessage("success", buyosStorage.getStorageMode() === "cloud" ? "Signed in and loaded cloud workspace." : "Signed in, but no workspace membership was found. Local mode remains available.");
+  } catch (error) {
+    showMessage("error", `Invalid login: ${error.message || "Could not sign in"}`);
+  }
+});
+
+signOutBtn.addEventListener("click", async () => {
+  storageState = await buyosStorage.signOut();
+  products = (storageState.products || []).map(normalizeProduct);
+  settings = { ...DEFAULT_SETTINGS, ...(storageState.settings || {}) };
+  renderSettings();
+  resetForm();
+  renderAll();
+  renderStorageStatus();
+  showMessage("success", "Signed out. Local mode remains available.");
+});
+
+reloadCloudBtn.addEventListener("click", async () => {
+  hideMessage();
+  try {
+    await loadActiveStorageState();
+    renderSettings();
+    resetForm();
+    renderAll();
+    if (buyosStorage.getStorageMode() !== "cloud") {
+      showMessage("error", buyosStorage.getStorageError() || buyosStorage.getStorageStatus() || "Cloud load failed. Local mode is still available.");
+    } else {
+      showMessage("success", products.length === 0
+        ? "Cloud workspace is empty. Add a product or migrate local data."
+        : `Reloaded ${products.length} ${products.length === 1 ? "product" : "products"} from cloud.`);
+    }
+  } catch (error) {
+    showMessage("error", `Cloud load failed: ${error.message || "Could not reload cloud data"}`);
+  }
+});
+
+migrateCloudBtn.addEventListener("click", async () => {
+  hideMessage();
+  if (!confirm("Upload local BuyOS products and settings to this Supabase workspace? Local browser data will not be deleted.")) return;
+  try {
+    const result = await buyosStorage.migrateLocalToSupabase();
+    await loadActiveStorageState();
+    renderSettings();
+    resetForm();
+    renderAll();
+    showMessage("success", `Migration complete. Uploaded ${result.uploaded}, skipped ${result.skipped}, failed ${result.failed}. Local data was not deleted.`);
+  } catch (error) {
+    showMessage("error", `Migration failed: ${error.message || "Could not migrate local data"}`);
+  }
+});
+
+clearLocalDataBtn.addEventListener("click", async () => {
+  hideMessage();
+  if (!confirm("This clears local BuyOS data from this browser only. Cloud data is not deleted.")) return;
+  buyosStorage.clearLocalBuyosData();
+  if (buyosStorage.getStorageMode() !== "cloud") {
+    await loadActiveStorageState();
+    renderSettings();
+    resetForm();
+    renderAll();
+  }
+  showMessage("success", "Local BuyOS data cleared from this browser. Cloud data was not deleted.");
+});
+
+async function initializeApp() {
+  initializeDropdowns();
+  renderScoreInputs();
+  await loadActiveStorageState();
+  renderSettings();
+  resetForm();
+  renderAll();
+}
+
+initializeApp().catch((error) => {
+  console.warn("BuyOS startup failed", { message: error?.message || "Unknown error" });
+  showMessage("error", "Startup failed. Refresh and try again.");
+});
