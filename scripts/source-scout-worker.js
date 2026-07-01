@@ -67,7 +67,7 @@ async function loadScoutRows() {
     .from("buyos_products")
     .select("id, workspace_id, legacy_id, sku, slug, data, updated_at")
     .eq("workspace_id", BUYOS_WORKSPACE_ID)
-    .filter("data->>importedBy", "eq", "source_scout")
+    .in("data->>importedBy", ["source_scout", "source_discovery_worker"])
     .not("data->>sourceUrl", "is", null)
     .or("data->>metadataStatus.is.null,data->>metadataStatus.neq.complete")
     .order("updated_at", { ascending: true })
@@ -81,7 +81,7 @@ async function loadScoutRows() {
       .from("buyos_products")
       .select("id, workspace_id, legacy_id, sku, slug, data, updated_at")
       .eq("workspace_id", BUYOS_WORKSPACE_ID)
-      .filter("data->>importedBy", "eq", "source_scout")
+      .in("data->>importedBy", ["source_scout", "source_discovery_worker"])
       .not("data->>sourceUrl", "is", null)
       .order("updated_at", { ascending: true })
       .limit(Math.max(BATCH_SIZE * 5, 25));

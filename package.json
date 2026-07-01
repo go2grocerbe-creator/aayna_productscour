@@ -7,7 +7,8 @@
     "dev": "vite --host 127.0.0.1",
     "preview": "vite preview --host 127.0.0.1",
     "start": "vite --host 127.0.0.1",
-    "scout:worker": "node scripts/source-scout-worker.js"
+    "scout:worker": "node scripts/source-scout-worker.js",
+    "scout:discover": "node scripts/source-discovery-worker.js"
   },
   "devDependencies": {
     "vite": "^5.4.11"

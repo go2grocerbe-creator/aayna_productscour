@@ -128,6 +128,12 @@ const FIELD_DEFAULTS = {
   listedPriceFetchedAt: "",
   missingFields: [],
   provisionalSku: false,
+  discoveredBy: "",
+  discoveredAt: "",
+  sourceScoutTaskId: "",
+  sourceScoutKeyword: "",
+  sourceDiscoveryProvider: "",
+  sourceDiscoveryRank: "",
   importStatus: "",
   needsHumanReview: false,
   importedBy: "",
@@ -1256,20 +1262,48 @@ function renderDashboardLists() {
 }
 
 function renderScoutTasks() {
-  const tasks = Array.isArray(settings.sourceScoutTasks) ? settings.sourceScoutTasks : [];
+  const tasks = normalizeSourceScoutTasks(settings.sourceScoutTasks);
   if (!tasks.length) {
     scoutTasksList.innerHTML = emptyState("No search intents yet. Add keywords above to queue future backend scouting.");
     return;
   }
   scoutTasksList.innerHTML = tasks.slice(0, 8).map((task) => `
-    <div class="compact-item">
+    <div class="compact-item scout-task-item">
       <div>
         <strong>${escapeHtml(task.keyword)}</strong>
-        <div class="meta">${escapeHtml(task.sourcePlatform)} - ${escapeHtml(task.category)} - queued ${escapeHtml(task.createdAt?.slice(0, 10) || "")}</div>
+        <div class="meta">${escapeHtml(task.sourcePlatform)} - ${escapeHtml(task.category)} - status ${escapeHtml(task.status)}</div>
+        <div class="meta">Created ${escapeHtml(task.createdAt?.slice(0, 10) || "-")} - Last run ${escapeHtml(task.lastRunAt?.slice(0, 16) || "Never")}</div>
+        <div class="meta">Discovered ${toNumber(task.discoveredCount)} - Imported ${toNumber(task.importedCount)} - Skipped ${toNumber(task.skippedDuplicateCount)} - Failed ${toNumber(task.failedCount)}</div>
+        ${task.lastError ? `<div class="meta error-text">${escapeHtml(task.lastError)}</div>` : ""}
       </div>
-      <span class="pill maybe">Intent</span>
+      <div class="task-actions">
+        <span class="pill maybe">${escapeHtml(task.status)}</span>
+        ${task.status === "paused"
+          ? `<button class="button ghost compact" data-task-action="resume" data-task-id="${escapeAttribute(task.id)}" type="button">Resume</button>`
+          : `<button class="button ghost compact" data-task-action="pause" data-task-id="${escapeAttribute(task.id)}" type="button">Pause</button>`}
+        <button class="button ghost compact delete-subtle" data-task-action="delete" data-task-id="${escapeAttribute(task.id)}" type="button">Delete</button>
+      </div>
     </div>
   `).join("");
+}
+
+function normalizeSourceScoutTasks(tasks) {
+  return (Array.isArray(tasks) ? tasks : []).map((task) => ({
+    id: task.id || crypto.randomUUID(),
+    keyword: task.keyword || "",
+    category: task.category || "Other",
+    sourcePlatform: task.sourcePlatform || "Other",
+    maxTargetSellingPrice: task.maxTargetSellingPrice ?? task.maxTargetPrice ?? settings.targetMaxPrice,
+    status: task.status === "queued" ? "pending" : (task.status || "pending"),
+    createdAt: task.createdAt || new Date().toISOString(),
+    updatedAt: task.updatedAt || task.createdAt || new Date().toISOString(),
+    discoveredCount: toNumber(task.discoveredCount),
+    importedCount: toNumber(task.importedCount),
+    skippedDuplicateCount: toNumber(task.skippedDuplicateCount),
+    failedCount: toNumber(task.failedCount),
+    lastRunAt: task.lastRunAt || null,
+    lastError: task.lastError || ""
+  })).filter((task) => task.keyword);
 }
 
 function updateFilterOptions() {
@@ -1310,7 +1344,7 @@ function getFilteredProducts() {
     if (rejected && product.approvalStatus !== "Rejected") return false;
     if (websiteReady && !product.readyForWebsiteUpload) return false;
     if (needsReview && !product.needsHumanReview) return false;
-    if (sourceScout && product.importedBy !== "source_scout") return false;
+    if (sourceScout && !["source_scout", "source_discovery_worker"].includes(product.importedBy)) return false;
     if (missingCost && product.costs.hasCostData) return false;
     if (hasDraftScore && !product.draftScores) return false;
     if (readyHumanScoring && !(product.needsScoreReview && product.draftScores)) return false;
@@ -1366,6 +1400,8 @@ function renderProductList() {
           <div class="detail"><span>Risk</span><strong>${escapeHtml(product.fragilityLevel)} / ${escapeHtml(product.courierRisk)}</strong></div>
           <div class="detail"><span>QC accepted</span><strong>${product.costs.finalStockAccepted === "" ? "Not arrived yet" : product.costs.finalStockAccepted}</strong></div>
           ${product.metadataStatus ? `<div class="detail"><span>Metadata</span><strong>${escapeHtml(product.metadataStatus)}</strong></div>` : ""}
+          ${product.discoveredBy ? `<div class="detail"><span>Discovery</span><strong>${escapeHtml(product.sourceDiscoveryProvider || product.discoveredBy)}</strong></div>` : ""}
+          ${product.sourceScoutKeyword ? `<div class="detail"><span>Keyword</span><strong>${escapeHtml(product.sourceScoutKeyword)}</strong></div>` : ""}
           ${product.listedSourcePrice ? `<div class="detail"><span>Listed source price</span><strong>${escapeHtml(product.listedSourceCurrency || "")} ${escapeHtml(product.listedSourcePrice)}</strong></div>` : ""}
         </div>
         <p class="decision-reason"><strong>Decision reason:</strong> ${escapeHtml(product.decisionReason)}</p>
@@ -2029,15 +2065,22 @@ sourceScoutForm.addEventListener("submit", async (event) => {
     }
 
     if (keywords.length) {
-      const existingTasks = Array.isArray(settings.sourceScoutTasks) ? settings.sourceScoutTasks : [];
+      const existingTasks = normalizeSourceScoutTasks(settings.sourceScoutTasks);
       const newTasks = keywords.map((keyword) => ({
         id: crypto.randomUUID(),
         keyword,
         sourcePlatform,
         category,
-        maxTargetPrice,
-        status: "queued",
-        createdAt: new Date().toISOString()
+        maxTargetSellingPrice: maxTargetPrice,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        discoveredCount: 0,
+        importedCount: 0,
+        skippedDuplicateCount: 0,
+        failedCount: 0,
+        lastRunAt: null,
+        lastError: ""
       }));
       settings = {
         ...settings,
@@ -2053,6 +2096,33 @@ sourceScoutForm.addEventListener("submit", async (event) => {
     showMessage("success", `Imported ${imported} candidates. Skipped ${skipped} duplicates.`);
   } catch (error) {
     showMessage("error", `Source Scout import failed: ${error.message || "Could not save draft candidates"}`);
+  }
+});
+
+scoutTasksList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-task-action]");
+  if (!button) return;
+  const { taskAction, taskId } = button.dataset;
+  const tasks = normalizeSourceScoutTasks(settings.sourceScoutTasks);
+  if (taskAction === "delete" && !confirm("Delete this Source Scout search task?")) return;
+  const nextTasks = tasks
+    .filter((task) => taskAction !== "delete" || task.id !== taskId)
+    .map((task) => {
+      if (task.id !== taskId) return task;
+      return {
+        ...task,
+        status: taskAction === "pause" ? "paused" : "pending",
+        updatedAt: new Date().toISOString(),
+        lastError: taskAction === "resume" ? "" : task.lastError
+      };
+    });
+  settings = { ...settings, sourceScoutTasks: nextTasks };
+  try {
+    await saveSettings();
+    renderAll();
+    showMessage("success", "Source Scout task updated.");
+  } catch {
+    renderAll();
   }
 });
 

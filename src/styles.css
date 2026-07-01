@@ -214,6 +214,22 @@ a {
   box-shadow: none;
 }
 
+.scout-task-item {
+  align-items: flex-start;
+}
+
+.task-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.error-text {
+  color: var(--danger);
+}
+
 .button {
   border: 1px solid transparent;
   border-radius: 8px;

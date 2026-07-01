@@ -214,6 +214,63 @@ What it refuses to do:
 
 The service-role key must never be committed. `.env.worker`, `.env.worker.local`, and local env files are ignored by Git. Source Scout products remain Pending / Needs Review until a human manually completes and approves them.
 
+## BuyOS v0.7 Search Discovery Worker
+
+BuyOS v0.7 adds a local Search Discovery Worker so Source Scout search terms can become candidate product URLs without manually pasting every URL.
+
+Flow:
+
+```bash
+npm run scout:discover
+npm run scout:worker
+```
+
+The first command reads pending `sourceScoutTasks` from BuyOS settings, calls the configured search provider, dedupes candidate URLs, and imports safe Source Scout products. The second command enriches those imported products with public metadata.
+
+Configure local discovery env:
+
+```bash
+cp .env.discovery.example .env.discovery.local
+```
+
+Required local/server-side variables:
+
+```text
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+BUYOS_WORKSPACE_ID=
+DISCOVERY_PROVIDER=
+DISCOVERY_API_KEY=
+DISCOVERY_ALLOWED_DOMAINS=
+DISCOVERY_MAX_RESULTS_PER_TASK=
+DISCOVERY_BATCH_SIZE=
+DISCOVERY_DRY_RUN=
+```
+
+Supported provider adapter names:
+
+- `brave`
+- `serpapi`
+- `tavily`
+
+Optional dry run:
+
+```bash
+npm run scout:discover -- --dry-run
+```
+
+Discovery safety rules:
+
+- Search terms become Source Scout tasks in settings.
+- Discovered candidates stay `Pending` and `Needs Review`.
+- Discovered candidates use provisional `SCOUT-*` SKUs.
+- Final `AYN-*` SKUs and manual approval are required before website export.
+- No auto-ordering.
+- No auto-approval.
+- No CAPTCHA, login, anti-bot, or marketplace protection bypass.
+- No frontend secrets or `VITE_` service-role variables.
+- Website CSV still excludes source URLs, supplier URLs, costs, listed source price, profit, margin, internal notes, draft score metadata, discovery metadata, and search keywords.
+
 ## Launch Batch Workflow
 
 The Launch Batch shows approved products only. A product enters the Launch Batch when it is approved, using the existing approval meaning in the app. Newly approved products default to `shortlisted`.
@@ -385,6 +442,12 @@ The migration uploads local products and settings to Supabase, skips products th
 46. Export website CSV and confirm provisional `SCOUT-*` products are skipped, final approved `AYN-*` products still export, Stock Quantity is not blank, and no supplier/source/cost/profit/margin/internal fields appear.
 47. Query Supabase after reload and confirm Source Scout `data->>'sku'` and the `sku` column match unique `SCOUT-*` values.
 48. Confirm Antique Gold Hoop Earrings remains `AYN-EAR-0001`.
+49. Add Source Scout search tasks such as `gold hoop earrings` and `pearl hair clips`, then confirm the Search Intents list shows status, created date, last run, counts, and pause/resume/delete actions.
+50. Configure `.env.discovery.local`, run `npm run scout:discover -- --dry-run`, and confirm candidate URLs print without inserting products.
+51. Run `npm run scout:discover`, then confirm Supabase receives Pending / Needs Review discovered products with unique `SCOUT-*` SKUs and `source_discovery_worker` fields.
+52. Run `npm run scout:worker` and confirm discovered products can be metadata-enriched.
+53. Re-run discovery and confirm duplicates are skipped.
+54. Export website CSV and confirm discovered SCOUT products do not export and no discovery/search/internal fields appear.
 
 ## Environment Variables
 
