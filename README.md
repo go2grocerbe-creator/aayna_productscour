@@ -121,6 +121,31 @@ If `Cloud products mapped` is greater than `Active products shown`, check cloud 
 
 The `buyos_settings` table uses `workspace_id` as the key, not `id`. Settings load selects `workspace_id, data`; settings save uses an upsert on `workspace_id`.
 
+## BuyOS v0.5 Source Scout
+
+Source Scout is an internal intake workflow for bringing product candidates into BuyOS for human review. It is not an auto-ordering bot, scraper, marketplace automation tool, CAPTCHA bypass, payment flow, or public ecommerce feature.
+
+What it does:
+
+- Accepts pasted product URLs and creates Pending product candidates
+- Stores search keywords as scout intents for a future backend worker
+- Marks imported products as `Imported - Needs Review`
+- Adds draft score suggestions without replacing official scores
+- Requires a human to complete costs, supplier details, ratings, scores, approval, and website readiness
+
+Imported Source Scout products default to:
+
+- `approvalStatus: Pending`
+- `sourcingStatus: Imported - Needs Review`
+- `importStatus: needs_review`
+- `needsHumanReview: true`
+- `importedBy: source_scout`
+- blank cost, supplier, image, rating, sold count, and review fields
+
+Draft scores are suggestions only. Use `Apply draft scores` on a product card to copy draft scores into the official editable score fields. Human approval is still required before any product can become website-ready.
+
+Future work can add a backend metadata fetcher and backend-only AI worker. Do not put AI keys or service-role Supabase keys in frontend code.
+
 ## Launch Batch Workflow
 
 The Launch Batch shows approved products only. A product enters the Launch Batch when it is approved, using the existing approval meaning in the app. Newly approved products default to `shortlisted`.
@@ -279,6 +304,11 @@ The migration uploads local products and settings to Supabase, skips products th
 33. Confirm the storage panel shows Cloud rows loaded: 1, Cloud products mapped: 1, and Active products shown: 1 when Supabase has one product row.
 34. Export JSON backup and confirm it contains the same number of products as Active products shown.
 35. If `buyos_settings` is empty or missing optional columns, reload cloud and confirm products still remain visible.
+36. Add three product URLs through Source Scout and confirm product count increases.
+37. Confirm imported Source Scout products are Pending / Imported - Needs Review and keep source URLs.
+38. Confirm draft scores appear without changing official scores until Apply draft scores is clicked.
+39. Import the same URLs again and confirm duplicates are skipped.
+40. Confirm imported products do not appear in website CSV until a human completes, approves, and marks them website-ready.
 
 ## Environment Variables
 

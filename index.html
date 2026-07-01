@@ -18,6 +18,7 @@
         </div>
         <nav class="nav-list" aria-label="Primary">
           <a href="#dashboard">Dashboard</a>
+          <a href="#source-scout">Source Scout</a>
           <a href="#candidate-form">Add Candidate</a>
           <a href="#products">Products</a>
           <a href="#launch-batch">Launch Batch</a>
@@ -83,6 +84,44 @@
               <div class="panel-heading"><h3>Website Upload Ready</h3></div>
               <div id="websiteReady" class="compact-list"></div>
             </div>
+          </div>
+        </section>
+
+        <section id="source-scout" class="section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Scout Inbox</p>
+              <h2>Source Scout</h2>
+            </div>
+          </div>
+          <form id="sourceScoutForm" class="form-grid">
+            <div class="field span-2">
+              <label for="scoutKeywords">Search keywords</label>
+              <textarea id="scoutKeywords" rows="4" placeholder="gold hoop earrings&#10;pearl hair clips"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="scoutUrls">Product URLs</label>
+              <textarea id="scoutUrls" rows="5" placeholder="Paste one product URL per line"></textarea>
+            </div>
+            <div class="field">
+              <label for="scoutSourcePlatform">Source platform</label>
+              <select id="scoutSourcePlatform"></select>
+            </div>
+            <div class="field">
+              <label for="scoutTargetCategory">Target category</label>
+              <select id="scoutTargetCategory"></select>
+            </div>
+            <div class="field">
+              <label for="scoutMaxPrice">Max target selling price</label>
+              <input id="scoutMaxPrice" type="number" min="0" step="1" />
+            </div>
+            <div class="form-actions span-2">
+              <button class="button primary" type="submit">Add to Scout Inbox</button>
+            </div>
+          </form>
+          <div class="panel scout-tasks-panel">
+            <div class="panel-heading"><h3>Search Intents</h3></div>
+            <div id="scoutTasksList" class="compact-list"></div>
           </div>
         </section>
 
@@ -328,6 +367,11 @@
             <label class="check-filter"><input id="watchlistFilter" type="checkbox" />Watchlist</label>
             <label class="check-filter"><input id="rejectedFilter" type="checkbox" />Rejected</label>
             <label class="check-filter"><input id="websiteReadyFilter" type="checkbox" />Website ready</label>
+            <label class="check-filter"><input id="needsReviewFilter" type="checkbox" />Needs review</label>
+            <label class="check-filter"><input id="sourceScoutFilter" type="checkbox" />Source Scout</label>
+            <label class="check-filter"><input id="missingCostFilter" type="checkbox" />Missing cost</label>
+            <label class="check-filter"><input id="hasDraftScoreFilter" type="checkbox" />Has draft score</label>
+            <label class="check-filter"><input id="readyHumanScoringFilter" type="checkbox" />Ready for human scoring</label>
           </div>
           <div id="productList" class="product-list"></div>
         </section>

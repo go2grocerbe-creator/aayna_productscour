@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS = {
   hardRejectPrice: 1000,
   monthlyBudget: 30000,
   lowProfitThreshold: 30,
-  moqWarningThreshold: 50
+  moqWarningThreshold: 50,
+  sourceScoutTasks: []
 };
 
 const BUY_THRESHOLD = 80;
@@ -112,6 +113,16 @@ const FIELD_DEFAULTS = {
   priceApproved: "No",
   qcStatus: "Not Arrived",
   manualScoreAdjusted: "No",
+  draftScores: null,
+  draftScoreReason: "",
+  draftScoreConfidence: "",
+  draftScoreSource: "",
+  draftMissingFields: [],
+  importStatus: "",
+  needsHumanReview: false,
+  importedBy: "",
+  importedAt: "",
+  needsScoreReview: false,
   launchStatus: "",
   launchChecklist: { ...DEFAULT_LAUNCH_CHECKLIST }
 };
@@ -369,6 +380,7 @@ let storageState = {
 };
 
 const form = document.querySelector("#productForm");
+const sourceScoutForm = document.querySelector("#sourceScoutForm");
 const settingsForm = document.querySelector("#settingsForm");
 const scoreInputs = document.querySelector("#scoreInputs");
 const calculatorPreview = document.querySelector("#calculatorPreview");
@@ -381,6 +393,7 @@ const signOutBtn = document.querySelector("#signOutBtn");
 const migrateCloudBtn = document.querySelector("#migrateCloudBtn");
 const reloadCloudBtn = document.querySelector("#reloadCloudBtn");
 const clearLocalDataBtn = document.querySelector("#clearLocalDataBtn");
+const scoutTasksList = document.querySelector("#scoutTasksList");
 
 async function loadActiveStorageState() {
   storageState = await buyosStorage.initializeStorage();
@@ -435,6 +448,12 @@ function normalizeProduct(product) {
     ...DEFAULT_LAUNCH_CHECKLIST,
     ...(product.launchChecklist || {})
   };
+  normalized.draftScores = product.draftScores && typeof product.draftScores === "object"
+    ? { ...product.draftScores }
+    : null;
+  normalized.draftMissingFields = Array.isArray(product.draftMissingFields) ? product.draftMissingFields : [];
+  normalized.needsHumanReview = Boolean(product.needsHumanReview);
+  normalized.needsScoreReview = Boolean(product.needsScoreReview);
   normalized.scores = {};
   SCORE_FIELDS.forEach(([key]) => {
     const existing = product.scores?.[key];
@@ -458,6 +477,8 @@ function populateSelect(id, values, includeBlank = false) {
 function initializeDropdowns() {
   populateSelect("category", DROPDOWNS.category);
   populateSelect("sourcePlatform", DROPDOWNS.sourcePlatform);
+  populateSelect("scoutTargetCategory", DROPDOWNS.category);
+  populateSelect("scoutSourcePlatform", DROPDOWNS.sourcePlatform);
   populateSelect("sourceCurrency", DROPDOWNS.sourceCurrency);
   populateSelect("realReviewPhotos", DROPDOWNS.yesNo);
   populateSelect("fragilityLevel", DROPDOWNS.riskLevel);
@@ -918,8 +939,11 @@ function renderCalculatorPreview() {
 
 function renderSettings() {
   Object.keys(DEFAULT_SETTINGS).forEach((key) => {
-    document.querySelector(`#${key}`).value = settings[key];
+    const input = document.querySelector(`#${key}`);
+    if (input) input.value = settings[key];
   });
+  const maxPriceInput = document.querySelector("#scoutMaxPrice");
+  if (maxPriceInput && !maxPriceInput.value) maxPriceInput.value = settings.targetMaxPrice;
 }
 
 function renderStorageStatus() {
@@ -1034,6 +1058,23 @@ function renderDashboardLists() {
   renderCompactList("websiteReady", computed.filter((product) => product.readyForWebsiteUpload).slice(0, 5));
 }
 
+function renderScoutTasks() {
+  const tasks = Array.isArray(settings.sourceScoutTasks) ? settings.sourceScoutTasks : [];
+  if (!tasks.length) {
+    scoutTasksList.innerHTML = emptyState("No search intents yet. Add keywords above to queue future backend scouting.");
+    return;
+  }
+  scoutTasksList.innerHTML = tasks.slice(0, 8).map((task) => `
+    <div class="compact-item">
+      <div>
+        <strong>${escapeHtml(task.keyword)}</strong>
+        <div class="meta">${escapeHtml(task.sourcePlatform)} - ${escapeHtml(task.category)} - queued ${escapeHtml(task.createdAt?.slice(0, 10) || "")}</div>
+      </div>
+      <span class="pill maybe">Intent</span>
+    </div>
+  `).join("");
+}
+
 function updateFilterOptions() {
   const selectedCategory = document.querySelector("#categoryFilter").value;
   const selectedSource = document.querySelector("#sourceFilter").value;
@@ -1055,6 +1096,11 @@ function getFilteredProducts() {
   const watchlist = document.querySelector("#watchlistFilter").checked;
   const rejected = document.querySelector("#rejectedFilter").checked;
   const websiteReady = document.querySelector("#websiteReadyFilter").checked;
+  const needsReview = document.querySelector("#needsReviewFilter").checked;
+  const sourceScout = document.querySelector("#sourceScoutFilter").checked;
+  const missingCost = document.querySelector("#missingCostFilter").checked;
+  const hasDraftScore = document.querySelector("#hasDraftScoreFilter").checked;
+  const readyHumanScoring = document.querySelector("#readyHumanScoringFilter").checked;
 
   return products.map(productWithComputed).filter((product) => {
     if (decision && product.decision !== decision) return false;
@@ -1066,6 +1112,11 @@ function getFilteredProducts() {
     if (watchlist && product.approvalStatus !== "On Hold") return false;
     if (rejected && product.approvalStatus !== "Rejected") return false;
     if (websiteReady && !product.readyForWebsiteUpload) return false;
+    if (needsReview && !product.needsHumanReview) return false;
+    if (sourceScout && product.importedBy !== "source_scout") return false;
+    if (missingCost && product.costs.hasCostData) return false;
+    if (hasDraftScore && !product.draftScores) return false;
+    if (readyHumanScoring && !(product.needsScoreReview && product.draftScores)) return false;
     return true;
   });
 }
@@ -1117,6 +1168,20 @@ function renderProductList() {
           <div class="detail"><span>QC accepted</span><strong>${product.costs.finalStockAccepted === "" ? "Not arrived yet" : product.costs.finalStockAccepted}</strong></div>
         </div>
         <p class="decision-reason"><strong>Decision reason:</strong> ${escapeHtml(product.decisionReason)}</p>
+        ${product.draftScores ? `
+          <div class="draft-score-box">
+            <div class="draft-score-head">
+              <strong>Draft score available</strong>
+              <span class="pill maybe">Confidence: ${escapeHtml(product.draftScoreConfidence || "low")}</span>
+            </div>
+            <p>${escapeHtml(product.draftScoreReason || "Draft score needs human review.")}</p>
+            <div class="meta">Missing fields: ${escapeHtml((product.draftMissingFields || []).join(", ") || "None flagged")}</div>
+            <div class="draft-score-grid">
+              ${SCORE_FIELDS.map(([key, label]) => `<span>${escapeHtml(label)}: <strong>${clampScore(product.draftScores?.[key])}</strong></span>`).join("")}
+            </div>
+            <button class="button secondary compact" data-action="applyDraftScores" data-id="${product.id}" type="button">Apply draft scores</button>
+          </div>
+        ` : ""}
         ${product.approvalOverrideReason ? `<p class="override-reason"><strong>Approval override:</strong> ${escapeHtml(product.approvalOverrideReason)}</p>` : ""}
         ${product.reason ? `<p class="meta">${escapeHtml(product.reason)}</p>` : ""}
         <div class="card-action-row">
@@ -1206,6 +1271,7 @@ function renderAll() {
   renderStorageStatus();
   renderStats();
   renderDashboardLists();
+  renderScoutTasks();
   updateFilterOptions();
   renderProductList();
   renderLaunchBatch();
@@ -1355,9 +1421,10 @@ function productExportLabel(product) {
 
 function productIdentityKeys(product) {
   return [
+    product.sourceUrl ? `source:${normalizeUrl(product.sourceUrl)}` : "",
     product.sku ? `sku:${normalizeKey(product.sku)}` : "",
     product.slug ? `slug:${normalizeKey(product.slug)}` : "",
-    product.productName ? `name:${normalizeKey(product.productName)}` : ""
+    product.productName ? `namecat:${normalizeKey(product.productName)}:${normalizeKey(product.category)}` : ""
   ].filter(Boolean);
 }
 
@@ -1366,6 +1433,127 @@ function hasProductIdentityMatch(candidate, existingProducts) {
   if (!candidateKeys.length) return false;
   const existingKeys = new Set(existingProducts.flatMap(productIdentityKeys));
   return candidateKeys.some((key) => existingKeys.has(key));
+}
+
+function normalizeUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    url.hash = "";
+    return url.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return normalizeKey(value);
+  }
+}
+
+function splitLines(value) {
+  return String(value || "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function inferProductNameFromUrl(sourceUrl) {
+  try {
+    const url = new URL(sourceUrl);
+    const parts = url.pathname.split("/").filter(Boolean);
+    const lastUsefulPart = [...parts].reverse().find((part) => !/^\d+$/.test(part) && !/^item$/i.test(part));
+    const raw = lastUsefulPart || url.hostname.replace(/^www\./, "");
+    const cleaned = decodeURIComponent(raw)
+      .replace(/\.[a-z0-9]+$/i, "")
+      .replace(/[-_+]+/g, " ")
+      .replace(/\b(item|product|detail|html)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return titleCase(cleaned) || "Imported candidate";
+  } catch {
+    return "Imported candidate";
+  }
+}
+
+function titleCase(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
+function sourceScoutDraftScores(productName, category, sourcePlatform, maxTargetPrice) {
+  const text = `${productName} ${category}`.toLowerCase();
+  const feminineWords = ["gold", "pearl", "rose", "heart", "bow", "flower", "cute", "charm", "bead"];
+  const trendWords = ["hoop", "clip", "pearl", "choker", "layer", "mini", "viral", "korean", "minimal"];
+  const contentWords = ["earring", "necklace", "ring", "hair", "sunglasses", "bag", "scarf"];
+  const isAccessory = contentWords.some((word) => text.includes(word)) || category !== "Other";
+  const feminine = feminineWords.some((word) => text.includes(word)) ? 4 : 3;
+  const trendy = trendWords.some((word) => text.includes(word)) ? 4 : 3;
+  const aaynaFit = isAccessory ? 4 : 3;
+  const lightweight = ["Earrings", "Ring", "Hair Accessory", "Bracelet", "Necklace"].includes(category) ? 4 : 3;
+  const demand = ["AliExpress", "SkyBuyBD", "1688"].includes(sourcePlatform) ? 3 : 2;
+  const priceFit = Number(maxTargetPrice) <= settings.targetMaxPrice ? 3 : 4;
+  const scores = {
+    feminine,
+    trendy,
+    aaynaFit,
+    easyToStyle: isAccessory ? 4 : 3,
+    lightweight,
+    reelsPhotos: isAccessory ? 4 : 3,
+    giftability: ["Earrings", "Necklace", "Bracelet", "Ring", "Gift Set"].includes(category) ? 4 : 3,
+    priceFit,
+    demand,
+    qualityRisk: 3
+  };
+  return Object.fromEntries(SCORE_FIELDS.map(([key]) => [key, clampScore(scores[key])]));
+}
+
+function sourceScoutMissingFields(product) {
+  const checks = [
+    ["unitCost", "unit cost"],
+    ["supplierName", "supplier"],
+    ["productImageLink", "image"],
+    ["supplierRating", "supplier rating"],
+    ["productRating", "product rating"],
+    ["soldCount", "sold count"],
+    ["reviewCount", "review count"]
+  ];
+  return checks.filter(([key]) => !hasValue(product[key])).map(([, label]) => label);
+}
+
+function createSourceScoutCandidate(sourceUrl, options) {
+  const productName = inferProductNameFromUrl(sourceUrl);
+  const category = options.category || "Other";
+  const draftScores = sourceScoutDraftScores(productName, category, options.sourcePlatform, options.maxTargetPrice);
+  const product = normalizeProduct({
+    id: crypto.randomUUID(),
+    dateAdded: TODAY,
+    productName,
+    slug: slugify(productName),
+    sourcePlatform: options.sourcePlatform,
+    sourceUrl,
+    category,
+    supplierName: "",
+    productImageLink: "",
+    unitCost: "",
+    productRating: "",
+    supplierRating: "",
+    soldCount: "",
+    reviewCount: "",
+    approvalStatus: "Pending",
+    sourcingStatus: "Imported - Needs Review",
+    launchStatus: "",
+    importStatus: "needs_review",
+    needsHumanReview: true,
+    importedBy: "source_scout",
+    importedAt: new Date().toISOString(),
+    reason: "Imported by Source Scout. Needs manual cost, rating, supplier, and score review.",
+    contentIdea: `${productName} styling idea for ${category}.`,
+    aiToolUsed: "Source Scout Draft",
+    manualScoreAdjusted: "No",
+    draftScores,
+    draftScoreReason: "Rule-based draft from URL text, source platform, and target category. Review before using.",
+    draftScoreConfidence: "low",
+    draftScoreSource: "source_scout_rules_v0.5",
+    needsScoreReview: true
+  });
+  product.draftMissingFields = sourceScoutMissingFields(product);
+  return product;
 }
 
 function exportDecisionCsv() {
@@ -1551,7 +1739,9 @@ form.addEventListener("submit", async (event) => {
       return;
     }
 
-    const savedProduct = await saveProductToStorage(product);
+    const existingProduct = products.find((item) => item.id === product.id);
+    const productToSave = normalizeProduct({ ...(existingProduct || {}), ...product });
+    const savedProduct = await saveProductToStorage(productToSave);
     const existingIndex = products.findIndex((item) => item.id === savedProduct.id);
     if (existingIndex >= 0) {
       products[existingIndex] = savedProduct;
@@ -1569,6 +1759,7 @@ form.addEventListener("submit", async (event) => {
 settingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   settings = {
+    ...settings,
     usdRate: numberValue("usdRate", DEFAULT_SETTINGS.usdRate),
     rmbRate: numberValue("rmbRate", DEFAULT_SETTINGS.rmbRate),
     markupPercentage: numberValue("markupPercentage", DEFAULT_SETTINGS.markupPercentage),
@@ -1586,6 +1777,59 @@ settingsForm.addEventListener("submit", async (event) => {
     showMessage("success", "Settings saved.");
   } catch {
     renderAll();
+  }
+});
+
+sourceScoutForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  hideMessage();
+  const sourcePlatform = document.querySelector("#scoutSourcePlatform").value;
+  const category = document.querySelector("#scoutTargetCategory").value;
+  const maxTargetPrice = numberValue("scoutMaxPrice", settings.targetMaxPrice);
+  const urls = splitLines(document.querySelector("#scoutUrls").value)
+    .filter((value) => /^https?:\/\//i.test(value));
+  const keywords = splitLines(document.querySelector("#scoutKeywords").value);
+  const options = { sourcePlatform, category, maxTargetPrice };
+  let imported = 0;
+  let skipped = 0;
+
+  try {
+    const savedCandidates = [];
+    for (const sourceUrl of urls) {
+      const candidate = createSourceScoutCandidate(sourceUrl, options);
+      if (hasProductIdentityMatch(candidate, [...products, ...savedCandidates])) {
+        skipped += 1;
+        continue;
+      }
+      savedCandidates.push(await saveProductToStorage(candidate));
+      imported += 1;
+    }
+
+    if (keywords.length) {
+      const existingTasks = Array.isArray(settings.sourceScoutTasks) ? settings.sourceScoutTasks : [];
+      const newTasks = keywords.map((keyword) => ({
+        id: crypto.randomUUID(),
+        keyword,
+        sourcePlatform,
+        category,
+        maxTargetPrice,
+        status: "queued",
+        createdAt: new Date().toISOString()
+      }));
+      settings = {
+        ...settings,
+        sourceScoutTasks: [...newTasks, ...existingTasks].slice(0, 100)
+      };
+      await saveSettings();
+    }
+
+    products = [...savedCandidates, ...products];
+    sourceScoutForm.reset();
+    document.querySelector("#scoutMaxPrice").value = settings.targetMaxPrice;
+    renderAll();
+    showMessage("success", `Imported ${imported} candidates. Skipped ${skipped} duplicates.`);
+  } catch (error) {
+    showMessage("error", `Source Scout import failed: ${error.message || "Could not save draft candidates"}`);
   }
 });
 
@@ -1608,6 +1852,19 @@ document.querySelector("#productList").addEventListener("click", async (event) =
       launchStatus: "website_ready",
       sourcingStatus: "Live on Website"
     });
+  }
+  if (action === "applyDraftScores") {
+    const product = products.find((item) => item.id === id);
+    if (product?.draftScores) {
+      await setProductPatch(id, {
+        scores: { ...product.draftScores },
+        needsScoreReview: false,
+        manualScoreAdjusted: "Yes",
+        scoredBy: product.scoredBy || "Source Scout review",
+        aiScoreDate: TODAY
+      });
+      showMessage("success", "Draft scores applied. Review and save any other missing fields before approval.");
+    }
   }
   if (action === "delete") await deleteProduct(id);
   if (action === "edit") {
@@ -1643,7 +1900,7 @@ document.querySelector("#launchBatchList").addEventListener("change", async (eve
   }
 });
 
-document.querySelectorAll("#decisionFilter, #categoryFilter, #sourceFilter, #minScoreFilter, #under700Filter, #approvedFilter, #watchlistFilter, #rejectedFilter, #websiteReadyFilter")
+document.querySelectorAll("#decisionFilter, #categoryFilter, #sourceFilter, #minScoreFilter, #under700Filter, #approvedFilter, #watchlistFilter, #rejectedFilter, #websiteReadyFilter, #needsReviewFilter, #sourceScoutFilter, #missingCostFilter, #hasDraftScoreFilter, #readyHumanScoringFilter")
   .forEach((input) => input.addEventListener("input", renderProductList));
 
 document.querySelector("#resetFormBtn").addEventListener("click", resetForm);

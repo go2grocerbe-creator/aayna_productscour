@@ -209,6 +209,11 @@ a {
   gap: 10px;
 }
 
+.scout-tasks-panel {
+  margin-top: 16px;
+  box-shadow: none;
+}
+
 .button {
   border: 1px solid transparent;
   border-radius: 8px;
@@ -825,6 +830,38 @@ textarea {
 .override-reason {
   border: 1px solid #ead7a9;
   background: #fffaf0;
+}
+
+.draft-score-box {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--antique-gold);
+  border-radius: 8px;
+  background: var(--cream-white);
+}
+
+.draft-score-box p {
+  margin: 6px 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.draft-score-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.draft-score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0;
+  color: var(--warm-taupe);
+  font-size: 12px;
 }
 
 .status-line {
