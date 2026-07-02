@@ -1227,21 +1227,29 @@ function needsPartnerReview(product) {
     && product.approvalStatus !== "Rejected";
 }
 
-function renderCompactList(id, items) {
+function renderCompactList(id, items, emptyMessage = emptyProductsMessage()) {
   const container = document.querySelector(`#${id}`);
   if (!items.length) {
-    container.innerHTML = emptyState(emptyProductsMessage());
+    container.innerHTML = emptyState(emptyMessage);
     return;
   }
   container.innerHTML = items.map((product) => `
     <div class="compact-item">
-      <div>
-        <strong>${escapeHtml(product.productName)}</strong>
-        <div class="meta">${escapeHtml(product.sku)} - ${escapeHtml(product.category)} - ${moneyOrDash(product.costs.suggestedSellingPrice)}</div>
+      <div class="compact-item-body">
+        <strong class="compact-title" title="${escapeAttribute(displayProductName(product))}">${escapeHtml(displayProductName(product))}</strong>
+        <div class="meta compact-meta" title="${escapeAttribute(compactProductMeta(product))}">${escapeHtml(compactProductMeta(product))}</div>
       </div>
       <span class="pill ${normalizeDecision(product.decision)}">${product.score}/100</span>
     </div>
   `).join("");
+}
+
+function displayProductName(product) {
+  return product.productName || "Unnamed product";
+}
+
+function compactProductMeta(product) {
+  return `${product.sku || "-"} - ${product.category || "-"} - ${moneyOrDash(product.costs.suggestedSellingPrice)}`;
 }
 
 function emptyState(message) {
@@ -1256,9 +1264,9 @@ function emptyProductsMessage() {
 
 function renderDashboardLists() {
   const computed = products.map(productWithComputed);
-  renderCompactList("topProducts", [...computed].sort((a, b) => b.score - a.score).slice(0, 5));
-  renderCompactList("partnerReview", computed.filter(needsPartnerReview).sort((a, b) => b.score - a.score).slice(0, 5));
-  renderCompactList("websiteReady", computed.filter((product) => product.readyForWebsiteUpload).slice(0, 5));
+  renderCompactList("topProducts", [...computed].sort((a, b) => b.score - a.score).slice(0, 5), products.length ? "No products to show." : emptyProductsMessage());
+  renderCompactList("partnerReview", computed.filter(needsPartnerReview).sort((a, b) => b.score - a.score).slice(0, 5), products.length ? "No partner-review products right now." : emptyProductsMessage());
+  renderCompactList("websiteReady", computed.filter((product) => product.readyForWebsiteUpload).slice(0, 5), products.length ? "No website-ready products yet." : emptyProductsMessage());
 }
 
 function renderScoutTasks() {
@@ -1371,7 +1379,7 @@ function renderProductList() {
       <div>
         <div class="product-head">
           <div>
-            <h3>${escapeHtml(product.productName)}</h3>
+            <h3 title="${escapeAttribute(displayProductName(product))}">${escapeHtml(displayProductName(product))}</h3>
             <div class="meta">${escapeHtml(product.sku)} - ${escapeHtml(product.sourcePlatform)} - ${escapeHtml(product.category)}</div>
           </div>
           <div class="status-line">

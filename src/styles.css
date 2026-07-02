@@ -363,6 +363,7 @@ a {
 .compact-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 8px;
   padding: 11px;
   border: 1px solid var(--line);
@@ -370,10 +371,28 @@ a {
   background: #fffaf7;
 }
 
-.compact-item strong {
+.compact-item-body {
+  min-width: 0;
+}
+
+.compact-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.compact-meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.compact-item > .pill {
+  flex-shrink: 0;
+  justify-self: end;
 }
 
 .meta {
@@ -630,9 +649,16 @@ textarea {
   gap: 14px;
 }
 
+.product-head > div:first-child {
+  min-width: 0;
+}
+
 .product-head h3 {
   margin: 0 0 6px;
   font-size: 21px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .product-meta {
@@ -885,6 +911,10 @@ textarea {
   flex-wrap: wrap;
   gap: 8px;
   margin: 10px 0 0;
+}
+
+.status-line .pill {
+  flex-shrink: 0;
 }
 
 .empty-state {
